@@ -2,7 +2,9 @@
 
 可自托管的音乐聚合系统，通过 Music Provider 统一管理本地音乐文件、挂载 NAS 与在线来源，提供音乐库、聚合歌单和播放；通过独立 Scraper 插件提供歌词/封面等信息的自动与手动刮削。
 
-当前阶段：Go Server、Local Files/音频插件和最简 Web 已有本地播放实现，支持真实列表、授权原流和服务端处理播放。启动见[Server 运行说明](server/docs/running.md)，验证范围见[实施记录](server/docs/validation/progress.md)。本仓库仍只维护跨端架构与共同文档；程序和各步骤提交分别保存在独立 Server/Web 仓库，在线平台等长期设计尚未实现。
+当前阶段：Go Server、Local Files/音频插件和最简 Web 已有本地播放实现，支持真实列表、授权原流、服务端处理播放和独立 NCM 解密插件。启动见[Server 运行说明](server/docs/running.md)，验证范围见[实施记录](server/docs/validation/progress.md)。本仓库仍只维护跨端架构与共同文档；程序和各步骤提交分别保存在独立 Server/Web 仓库，在线平台等长期设计尚未实现。
+
+NCM 插件已接入本地扫描与播放，支持提取容器内的 MP3/FLAC；配置、限制和[手工验证步骤](server/docs/ncm.md#5-手工验证)集中在 [NCM 插件说明](server/docs/ncm.md)。独立 Worker、Server 回归和三项 Edge 联调已通过，证据见 [Web NCM 验证](web/docs/ncm-validation.md)；真实下载的 NCM 变体尚未验收。
 
 ## 实现计划
 
@@ -53,3 +55,5 @@
 | 网易云音乐 | [NeteaseCloudMusicApiEnhanced/api-enhanced](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced) |
 | QQ 音乐 | [jsososo/QQMusicApi](https://github.com/jsososo/QQMusicApi) |
 | Apple Music | [zachomedia/apple-music-webplayer](https://github.com/zachomedia/apple-music-webplayer)，MusicKit 浏览器集成示例 |
+
+本地 NCM 解密另参考 MIT 项目 ncmdump-go 和 ncmdump.rs 的格式布局，以 Go 标准库重写。项目、许可证链接及采用范围见 [Server README 的 NCM 参考](server/README.md#本地-ncm-解密参考)；这些格式参考没有成为运行依赖。

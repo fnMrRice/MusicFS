@@ -2,6 +2,8 @@
 
 状态：2026-10-09，本地文件扫描与最简 Web 播放基线已在独立 Server/Web 仓库落地。本文保留完整交付顺序与共同约定；每步提交、通过项和剩余验收见 [Server 实施记录](../server/docs/validation/progress.md)与 [Web 兼容记录](../web/docs/compatibility.md)。P5—P7 及桌面 Client 仍待实施。
 
+后续授权的本地 NCM 插件已完成独立解密、扫描及最简 Web 接入，沿用既有鉴权与播放协议；参考来源、配置和验收边界见 [NCM 插件说明](../server/docs/ncm.md)。该增量不代表网易云在线 Provider 或账号功能已经实现。
+
 ## 1. 本期范围与阅读入口
 
 Server 已确定使用 Go。源码采用用户指定布局：各实现仓库的 `src/` 放源码，`src/app/` 放程序入口，其余模块按职责放在 `src/` 下；`tests/` 集中放测试。这是项目选择的布局，不声称它是 Go 唯一标准。语言和工具仍遵循 Go module、包导入、测试发现等规则。
