@@ -1,36 +1,63 @@
 @startsalt
 {
- MusicFS - Settings and Desktop Lyrics
- {+
-  Server connection
-  { Mode | ^Managed local^ }
-  { Server URL | "http://127.0.0.1:PORT" }
-  { Status | Ready / MusicFS / API v1 }
-  { [Test connection] | [Open logs] | [Retry] }
-  Managed local: start packaged server when needed
-  Remote: connect only
- }
- {+
-  Providers
-  {#
-   Provider | Account | Sync | Action
-   Local NAS | Not required | Ready | [Configure]
-   Cloud A | Signed out | Paused | [Sign in]
-   Cloud B | Signed in | Cached | [Refresh]
+  MusicFS - Settings and Desktop Lyrics
+  {+
+    Server connection
+    { Mode | ^Managed local^ }
+    { Server URL | "http://127.0.0.1:PORT" }
+    { Status | Ready / MusicFS / API v1 }
+    { [Test connection] | [Open logs] | [Retry] }
+    Managed local: start packaged server when needed
+    Remote: connect only
   }
- }
- {+
-  Appearance
-  { Theme | ^System / Light / Dark^ }
-  { Skin | ^Default^ }
- }
- {+
-  Desktop lyrics
-  { [X] Enabled | [X] Always on top | [ ] Click through | [ ] Locked }
-  { Font size | "28" | Offset ms | "0" }
-  { [Preview] | [Reset position] }
-  Example lyric line
-  Next lyric line
- }
+  {+
+    Music Providers
+    {#
+      Provider | Account | Sync | Action
+      Local Files / NAS | Not required | Ready | [Configure]
+      Cloud A | Signed out | Paused | [Sign in]
+      Cloud B | Signed in | Cached | [Refresh]
+    }
+  }
+  {+
+    Local Files / NAS Provider
+    { Allowed roots | "/srv/music; /mnt/nas/music" | [Edit roots] }
+    NAS paths must be mounted on the server
+    { [X] Watch changes | [Scan now] | [Retry failed scans] }
+  }
+  {+
+    Scraper Plugins
+    {#
+      Scraper | Enabled | Order | Account | Action
+      Scraper A | [X] | 1 | Not required | [Configure]
+      Scraper B | [ ] | 2 | Signed out | [Configure]
+    }
+    Scrapers have independent configuration and credentials
+    { [X] Automatic scrape | Output directory | "/srv/musicfs/media" }
+    { [ ] Write original audio files | [Configure roots and fields] }
+    Lyrics and artwork are stored as separate files by default
+  }
+  {+
+    Manual Scrape
+    { Target | ^Track / Album / Batch^ | [Select music] }
+    { Fields | ^Lyrics / Artwork / Metadata^ }
+    { Scraper | ^Choose scraper^ | Query | "Artist / Title / Album" }
+    { [Search] | [Preview and select fields] | [Apply selected] | [Retry failed] }
+    { [Edit metadata] | [Import lyrics / artwork] }
+    Manual selections are protected from automatic overwrite
+  }
+  {+
+    Appearance
+    { Theme | ^System / Light / Dark^ }
+    { Skin | ^Default^ }
+  }
+  {+
+    Desktop lyrics
+    { [X] Enabled | [X] Always on top | [ ] Click through | [ ] Locked }
+    { Font size | "28" | Offset ms | "0" }
+    { [Preview] | [Reset position] }
+    Example lyric line
+    Next lyric line
+  }
 }
 @endsalt

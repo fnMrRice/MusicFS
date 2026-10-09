@@ -1,67 +1,69 @@
 # MusicFS 架构设计
-状态：设计草案 v0.2；2026-10-09。本文由 MusicFS 总项目仓库维护，是三个实现仓库的架构事实来源，未实现的功能不得描述为已完成。
+状态：设计草案 v0.3；2026-10-09。本文由 MusicFS 总项目仓库维护，是三个实现仓库的架构事实来源，未实现的功能不得描述为已完成。
 
 ## 1. 目标与边界
-MusicFS 是可自托管的音乐聚合系统。Server 通过 Provider 接入本地/NAS 与在线平台，管理统一音乐库及聚合歌单；Web 与桌面 Client 展示并播放。桌面端优先 Tauri，提供桌面歌词、皮肤与 Windows 本地 Server 启动。
-Server 同时负责音乐信息刮削，包括歌词、封面及来源允许获取的专辑等信息。歌词、封面等内容保存为独立目录中的文件，数据库仅保存索引与关联；默认不修改原始音频，允许显式配置将选定内容写入本地/NAS 原始音频文件。
+MusicFS 是可自托管的音乐聚合系统。Server 通过音乐来源插件 Music Provider 接入本地音乐文件、已挂载 NAS 目录与在线平台，管理统一音乐库及聚合歌单；本地文件 Provider 是第一版正式设计范围，不依赖在线平台账号。Web 与桌面 Client 展示并播放。桌面端优先 Tauri，提供桌面歌词、皮肤与 Windows 本地 Server 启动。
+Server 通过独立的 Scraper 刮削插件获取歌词、封面及专辑等补充信息，支持自动任务与手动检索、预览、选用。Scraper 可使用独立数据源，不要求由音乐 Provider 提供或依赖某个在线音乐 Provider。歌词、封面等内容保存为独立目录中的文件，数据库仅保存索引与关联；默认不修改原始音频，允许显式配置将选定内容写入本地/NAS 原始音频文件。
 网易云、QQ 音乐是目标 Provider，并非已验证可用的接口。接入可行性、登录方式、播放与歌单能力须分别验证；平台账号权限、接口变动、付费歌曲可用性由 Provider 显式返回，不承诺全量支持。
 第一版不做微服务、多语言插件运行时、双向平台歌单写回、云端账号共享或默认转码。
 
 ## 2. 仓库与协议所有权
-| 仓库 | 职责 |
-| --- | --- |
-| MusicFS | 总体架构、共享设计、图示与线框 |
-| MusicFS-server | 核心、Provider SDK、数据库迁移、部署、OpenAPI 与事件协议 |
-| MusicFS-web | 浏览器 UI、浏览器播放适配器、皮肤、消费生成的 SDK |
-| MusicFS-client | Tauri 壳、桌面播放适配器、歌词窗口、启动器、桌面打包 |
+| 仓库           | 职责                                                     |
+| -------------- | -------------------------------------------------------- |
+| MusicFS        | 总体架构、共享设计、图示与线框                           |
+| MusicFS-server | 核心、Music Provider / Scraper 插件 SDK、数据库迁移、部署、OpenAPI 与事件协议 |
+| MusicFS-web    | 浏览器 UI、浏览器播放适配器、皮肤、消费生成的 SDK        |
+| MusicFS-client | Tauri 壳、桌面播放适配器、歌词窗口、启动器、桌面打包     |
 Server 的 docs/contracts 后续存放 OpenAPI 与 JSON Schema，发布带版本的客户端 SDK。Web 发布可复用 UI 包，Client 固定版本依赖它，而非运行时依赖在线 Web 站点。桌面发行包内嵌 UI，避免 UI 代码在两仓库复制。
 协议独立于实现语言。建议评估 Rust Server + SQLite、TypeScript UI 和 Tauri Rust 宿主；Server 语言与前端框架仍待技术验证。不采用跨编译器 C++ ABI 作为第三方插件协议。
 
 ## 3. 模块
 API Gateway：鉴权、请求校验、分页、幂等、统一错误。
 Library：规范化元数据、录音版本、文件资产、码率与 SHA-512 匹配证据、候选关联、人工关联与禁止关联。
-Metadata Enrichment：歌词/封面等信息刮削、来源与版本匹配、人工选择与覆盖、受配置控制的原文件标签写入。
+Metadata Enrichment：调度独立 Scraper、管理候选与适用版本、手动预览/选用及自动应用策略；通过核心流程执行受配置控制的原文件标签写入。
 Playlist：本地歌单、远程快照、聚合规则、快照版本与来源追溯。
 Resolver：按用户配置筛选账号权限、可用性、音质、来源优先级，创建短期播放会话。
-Provider Host：能力声明、账号上下文、取消、限流、超时、错误映射。
+Plugin Host：共用插件生命周期、版本协商、取消、限流、超时与错误映射；Music Provider 和 Scraper 使用独立的角色注册、实例配置、凭据与权限。Provider 接入音乐来源，Scraper 只返回刮削候选与内容，均不直接修改核心数据库。
 Scheduler：NAS 扫描、后台文件探测与 SHA-512 计算、刮削与标签写入任务、远程同步、退避重试、恢复任务、并发控制。
 Stream Gateway：本地文件/远程字节流转发、Range、会话鉴权、过期刷新；默认不解码。
 Storage：SQLite WAL、单写入队列、Media Store 独立文件目录与可重建缓存；数据库不存歌词正文、封面或其他文件内容，账号密钥独立保护。
 详见 [组件图](diagrams/components.puml)。
 
 ## 4. 核心实体
-| 实体 | 标识与语义 |
-| --- | --- |
-| Recording | 内部 UUID；某个录音版本，Live/Remix/翻唱分别建模 |
-| SourceTrack | providerInstanceId + externalId 唯一；某平台或本地文件的曲目 |
-| SourceAsset | 内部 assetId；SourceTrack 下某一音质的具体文件字节版本，保存码率、大小与 SHA-512；同一曲目可有多个资产 |
-| MediaObject | 歌词/封面/刮削原文的文件索引；objectId、类型、相对路径、MIME、大小、摘要、来源、版本、状态与访问归属，不含文件正文 |
-| MediaBinding | 将 MediaObject 关联到来源曲目、文件版本或来源专辑/发行版本；记录语言、歌词时序适用范围、人工选择与优先级 |
-| RecordingSourceLink | 来源关联、匹配依据、置信度、人工/自动状态 |
-| MatchExclusion | 用户禁止关联的来源对，自动匹配不可覆盖 |
-| ProviderInstance | 插件类型 + 实例 + 配置；同一插件可接多个 NAS |
-| ProviderAccount | userId + instanceId + accountId；密钥不出 API |
-| Playlist | 用户拥有的本地/远程/聚合歌单 |
-| PlaylistEntry | 稳定 entryId、顺序、来源曲目，可保留未匹配项 |
-| PlaylistBinding | 聚合歌单引用的子歌单、排序、来源约束 |
-| PlaylistSnapshot | revision、同步状态、生成时间、不可变条目 |
-| EntryProvenance | 聚合条目对应的原歌单与原 entryId |
-| PlaybackSession | 用户、设备、来源、当前 assetId、音质、过期时间、已尝试来源 |
+| 实体                | 标识与语义                                                                                                         |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| Recording           | 内部 UUID；某个录音版本，Live/Remix/翻唱分别建模                                                                   |
+| SourceTrack         | providerInstanceId + externalId 唯一；某平台或本地文件的曲目                                                       |
+| SourceAsset         | 内部 assetId；SourceTrack 下某一音质的具体文件字节版本，保存码率、大小与 SHA-512；同一曲目可有多个资产             |
+| MediaObject         | 歌词/封面/刮削原文的文件索引；objectId、类型、相对路径、MIME、大小、摘要、来源、版本、状态与访问归属，不含文件正文 |
+| MediaBinding        | 将 MediaObject 关联到来源曲目、文件版本或来源专辑/发行版本；记录语言、歌词时序适用范围、人工选择与优先级           |
+| RecordingSourceLink | 来源关联、匹配依据、置信度、人工/自动状态                                                                          |
+| MatchExclusion      | 用户禁止关联的来源对，自动匹配不可覆盖                                                                             |
+| ProviderInstance    | Music Provider 插件 + 实例 + 来源配置；可配置多个本地目录/NAS 实例                                                                       |
+| ProviderAccount     | userId + instanceId + accountId；密钥不出 API                                                                      |
+| ScraperInstance | Scraper 插件与独立实例/配置、能力、启用状态和优先级；按实例和用户管理账号/凭据，不复用 ProviderAccount |
+| ScrapeJob / ScrapeCandidate | 目标、触发方式、所选插件/字段、查询条件、状态与候选引用；记录插件版本及依据，正文仍在 Media Store |
+| Playlist            | 用户拥有的本地/远程/聚合歌单                                                                                       |
+| PlaylistEntry       | 稳定 entryId、顺序、来源曲目，可保留未匹配项                                                                       |
+| PlaylistBinding     | 聚合歌单引用的子歌单、排序、来源约束                                                                               |
+| PlaylistSnapshot    | revision、同步状态、生成时间、不可变条目                                                                           |
+| EntryProvenance     | 聚合条目对应的原歌单与原 entryId                                                                                   |
+| PlaybackSession     | 用户、设备、来源、当前 assetId、音质、过期时间、已尝试来源                                                         |
 作品层可后续添加；不以“歌名 + 歌手”作为唯一键。时长、专辑、版本标识、ISRC 等只作证据。候选匹配不直接销毁来源记录；人工合并/解除均保留审计与可逆关联。未匹配来源仍可播放。
 用户归属从第一版预留，第一版可只启用一个管理员。全局录音元数据与用户歌单、账号、播放状态分开；不能通过共享元数据推断其他用户私人文件。
 
 ### 4.1 文件信息与匹配依据
 后端记录音乐的码率和 SHA-512，归属具体 SourceAsset，不在 Recording 或 SourceTrack 上保存一个会被不同音质相互覆盖的值。资产的字节版本身份不可变，探测结果可逐步补齐；文件内容变化时创建新资产版本并重新校验，不直接替换已有播放会话的资源。
 
-| 字段 | 语义 |
-| --- | --- |
-| codec、container、durationMs | 编码、封装及音频时长；未知值为 null |
-| bitrateBps、bitrateMode | 音频码率，单位 bit/s；CBR 记录固定码率，VBR 记录平均码率；模式为 cbr/vbr/unknown，无法取得码率时为 null，不以 0 表示未知 |
-| bitrateOrigin | provider/probe/estimate；区分平台申报、文件探测与估算，保留申报值及其来源，避免混淆音质档位名称与实测码率 |
-| fileSizeBytes | 完整文件的字节数；未知值为 null |
-| fileSha512 | Server 对完整原始文件字节计算的 SHA-512，包含容器、标签及内嵌封面；存储为 64 字节，协议表示为 128 个小写十六进制字符；未完成计算时为 null |
-| providerSha512 | Provider 申报的完整文件 SHA-512，可为空；与 Server 计算值分开保存，不将其他哈希、ETag 或音频载荷摘要填入此字段 |
-| hashStatus、hashComputedAt | pending/verified/unavailable/failed/invalidated；verified 仅表示 Server 已完整读取并计算该稳定版本，附计算时间；另记录 Provider 申报值是否与计算值一致 |
+| 字段                         | 语义                                                                                                                                                   |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| codec、container、durationMs | 编码、封装及音频时长；未知值为 null                                                                                                                    |
+| bitrateBps、bitrateMode      | 音频码率，单位 bit/s；CBR 记录固定码率，VBR 记录平均码率；模式为 cbr/vbr/unknown，无法取得码率时为 null，不以 0 表示未知                               |
+| bitrateOrigin                | provider/probe/estimate；区分平台申报、文件探测与估算，保留申报值及其来源，避免混淆音质档位名称与实测码率                                              |
+| fileSizeBytes                | 完整文件的字节数；未知值为 null                                                                                                                        |
+| fileSha512                   | Server 对完整原始文件字节计算的 SHA-512，包含容器、标签及内嵌封面；存储为 64 字节，协议表示为 128 个小写十六进制字符；未完成计算时为 null              |
+| providerSha512               | Provider 申报的完整文件 SHA-512，可为空；与 Server 计算值分开保存，不将其他哈希、ETag 或音频载荷摘要填入此字段                                         |
+| hashStatus、hashComputedAt   | pending/verified/unavailable/failed/invalidated；verified 仅表示 Server 已完整读取并计算该稳定版本，附计算时间；另记录 Provider 申报值是否与计算值一致 |
 
 码率用于音质筛选、展示和匹配的辅助证据，不作为曲目唯一键，也不能单凭码率相同自动关联。不同编码之间不能直接以码率高低判断音质优劣。整文件大小包含标签与容器开销，不能直接用 fileSizeBytes / durationMs 代替精确音频码率。
 
@@ -74,7 +76,13 @@ Storage：SQLite WAL、单写入队列、Media Store 独立文件目录与可重
 在线来源允许码率或哈希暂时未知。仅在权限与 Provider 能力允许、且已完整读取同一版本全部文件字节时计算摘要；不为匹配强制预下载每首歌曲，不把部分 Range、乱序或重复片段当作完整文件计算。无法取得完整文件时标记 unavailable，不阻止已有权限下的播放。未取得完整 SHA-512 时，播放资源的一致性仍可使用可靠的强验证器；资源变化后必须重新加载，不能沿用旧文件的字节偏移。
 
 ### 4.2 信息刮削与独立文件存储
-Server 统一调度本地提取及在线刮削，Web/Client 通过 Server 获取结果。刮削可在入库后按配置自动执行，也可手动触发；失败保留已有结果并记录状态，不阻塞音乐入库或播放。具体在线刮削来源、登录条件与可用能力需逐个验证，不预设某个平台必定提供歌词或封面。
+Server 的 Metadata Enrichment 统一调度独立 Scraper 插件，Web/Client 通过 Server 获取结果。插件可仅提供歌词、封面、专辑信息中的部分能力；数据源可以是独立元数据服务、本地内嵌标签/旁置文件或经适配的音乐平台。即使只配置本地文件 Provider，也可以启用独立在线 Scraper；不要求先添加在线音乐账号。具体在线刮削来源、登录条件与可用能力需逐个验证，不预设某个平台必定提供歌词或封面。
+
+自动刮削按音乐库规则配置启用时机、Scraper 实例/顺序、目标字段与选用策略，默认只补缺失且有充分匹配依据的内容；歧义候选保留待选，不任意覆盖人工结果。失败保留已有内容并记录状态，不阻塞音乐入库或播放。自动和手动任务共用插件调用与内容发布流程，手动刮削不是另一套内置平台爬虫。
+
+手动刮削支持单曲、来源专辑和批量选择：用户选择目标、Scraper 与字段，可调整歌名/歌手等查询条件；Server 调用插件检索候选，界面展示来源、封面预览、歌词语言/时序及匹配依据，再由用户逐字段或按批次选用。候选预览不会立即替换已发布内容；应用时校验目标修订，成功后保存为人工选定并锁定，后续自动任务不能覆盖。批量任务逐项报告结果，支持取消、仅重试失败项及排除某个插件。
+
+用户也可直接上传封面/歌词、编辑歌词或更换已选内容，经相同核心校验与文件存储流程发布；本地手工内容不依赖第三方插件可用。手动触发、选用或上传均不自动打开原文件写入开关。
 
 可配置 mediaRoot，默认位于 Server 数据目录下，与音乐目录分离。例如：
 
@@ -106,33 +114,72 @@ data/media/
 远程写回以后单独设计冲突与补偿，不默认同步回所有平台。源歌单循环引用必须拒绝。
 同步任务按账号/实例限流；同一歌单合并重复请求并串行同步，持久化任务代次，发布事务校验其仍为有效代次，禁止较旧或恢复的任务覆盖新结果；聚合快照记录规则版本与所引用的子快照版本。持久化任务状态，指数退避加抖动；任务支持取消，重启后恢复。凭据失效暂停相关任务并提示登录。
 
-## 6. Provider 协议
-先交付官方受信任 Provider；第三方插件正式支持前提供进程隔离。建议 Host 与 Worker 使用版本化 JSON-RPC，经 stdio 通信；后续也可用本地 socket。不同时引入多个语言宿主。
-manifest 包含 id、version、protocolVersion、capabilities、配置 schema 与权限。能力至少包括 search、metadata、playlist.read、stream.resolve、lyrics、artwork、library.scan；登录、playlist.write 与本地文件 metadata.write 分别独立声明。具备写入能力不代表配置已授权，metadata.write 默认禁用。
-调用带 requestId、accountRef、deadline、cursor、取消令牌；分页结果含 nextCursor 与可用快照版本。错误码：AUTH_REQUIRED、ACCESS_DENIED、NOT_FOUND、RATE_LIMITED、TEMPORARY_FAILURE、UNSUPPORTED、UNAVAILABLE；包含 retryAfter 与可重试属性，不传出密钥。
-metadata/resolve 按具体音质与文件版本返回可获得的 codec、container、durationMs、bitrateBps、bitrateMode、fileSizeBytes、providerSha512 及资源版本证据；未知值为 null，Provider 不能自行标记 Server 的 hashStatus 为 verified。resolve 另返回 MIME、质量、过期时间、Range 能力、直接播放是否允许，以及仅 Server 可见的请求头；Server 据此关联或创建 SourceAsset。Provider 不决定跨源匹配、去重、全局优先级。
-lyrics/artwork 返回内容或受限的资源描述、来源标识、格式、语言及适用版本，由 Server 校验并保存到 Media Store；远程 URL 和凭据不作为永久内容标识。刮削文件下载沿用目标地址、重定向、大小与格式校验，不形成任意 URL 下载入口。
-隔离权限限定目标域名和挂载根目录，限制资源、日志长度和执行时间；进程隔离本身不是完整沙箱。官方插件也不获得无条件任意文件和网络访问。
+## 6. 插件协议与音乐来源
+
+### 6.1 共用宿主与独立插件角色
+插件分为 Music Provider 与 Scraper 两类角色，均可独立安装、启停与配置。先交付官方受信任插件；第三方插件正式支持前提供进程隔离。建议 Host 与 Worker 使用版本化 JSON-RPC，经 stdio 通信；后续也可用本地 socket。不同时引入多个语言宿主。共用 Host 不表示共用实例状态或凭据；同一安装包可声明两种角色，但仍按角色分别注册和授权。
+
+manifest 包含 id、version、protocolVersion、roles、各角色的 capabilities、配置 schema 与权限。调用带 requestId、instanceRef、可选 accountRef、deadline、cursor、取消令牌；账号引用只能属于本次调用的用户和角色实例。分页结果含 nextCursor 与可用快照版本。错误码：AUTH_REQUIRED、ACCESS_DENIED、NOT_FOUND、RATE_LIMITED、TEMPORARY_FAILURE、UNSUPPORTED、UNAVAILABLE；包含 retryAfter 与可重试属性，不传出密钥。
+
+权限限定目标域名、挂载根目录或任务授权的只读资源，限制资源、日志长度和执行时间；进程隔离本身不是完整沙箱。官方插件也不获得无条件任意文件和网络访问。插件不直接写核心数据库；Scraper 无原音频写权限，回写只能走核心调度的授权 Provider 写入流程。停用/卸载 Scraper 取消其未完成任务，但保留已发布内容与来源记录，不影响已入库曲目的播放。
+
+### 6.2 Music Provider：音乐来源接入
+Music Provider 负责曲目发现、来源原始元数据、可用性与音质、歌单读取及播放资源解析，按需声明 search、metadata.read、playlist.read、stream.resolve、library.scan 等能力，不要求每个来源实现全部能力。登录、playlist.write 与本地文件 metadata.write 分别独立声明；具备写入能力不代表配置已授权，metadata.write 默认禁用。
+
+metadata.read/stream.resolve 按具体音质与文件版本返回可获得的 codec、container、durationMs、bitrateBps、bitrateMode、fileSizeBytes、providerSha512 及资源版本证据；未知值为 null，Provider 不能自行标记 Server 的 hashStatus 为 verified。resolve 另返回 MIME、质量、过期时间、Range 能力、直接播放是否允许，以及仅 Server 可见的请求头；Server 据此关联或创建 SourceAsset。Provider 不决定跨源匹配、去重、全局优先级。若音乐平台同时提供歌词/封面，可通过明确注册的 Scraper 适配器接入统一候选流程，不使独立 Scraper 依赖该 Provider。
+
+### 6.3 本地音乐文件 Provider
+第一版提供官方 Local Files Provider，接入 Server 所在机器的音乐目录以及 Server 已挂载、可访问的 NAS 目录。实例配置包含允许访问的根目录、递归/排除规则、扫描策略及可选写回配置；不需要在线音乐账号。原生 SMB/NFS 等直连 NAS 协议插件属于后续独立能力验证，首版不以它们为前置依赖。
+
+本地 Provider 的能力与核心分工：
+
+| 能力 | 行为 |
+| --- | --- |
+| library.scan | 初次全量扫描，支持手动全量/增量扫描及定期复核；文件变化通知只作为增量提示，不能代替完整复核 |
+| metadata.read | 读取文件原始标签、codec、时长、CBR/VBR 码率等已支持信息，交由核心建档；具体格式解析库与支持矩阵需验证 |
+| stream.resolve | 返回限定根目录与版本的内部文件引用、长度/MIME/Range 能力，由 Stream Gateway 鉴权后提供字节流和 seek，不向客户端返回原始路径 |
+| 受限文件读取 | 核心后台探测/SHA-512 任务可读取指定版本；本地 Scraper 可获得任务范围内的只读资源，用于提取内嵌封面、歌词及同目录旁置内容 |
+| metadata.write（可选） | 仅按 4.3 节经显式配置和能力验证后写标签，不承担自动刮削决策，不转码或删除原音乐文件 |
+
+文件 externalId 使用 Provider 持久化分配的标识，不以绝对路径、歌名或 SHA-512 直接作为唯一身份；标识映射经 Host 的持久存储接口保存，插件不直接改核心表。保存根目录、相对路径、可用文件系统标识与观测版本；重命名/移动时依据可靠文件标识或复核证据更新映射并保持 SourceTrack。存在歧义时保留待确认候选，不把同内容的多份实际文件强行当成一次移动；相同字节的独立文件仍保留各自来源与路径。
+
+扫描按根目录记录代次和完整性。NAS 离线、目录不可读或扫描被取消时保留旧曲目和歌单关联，标记来源离线/扫描不完整，不按“本次未看到”批量移除；校验预期挂载/卷身份，失挂后仍存在的空目录不能视为原音乐源成功扫描。只有来源身份有效、根目录可访问且完整复核确认缺失时才更新不可用状态。重新连接后可恢复。发现文件变化则重新生成资产版本并排队探测/计算摘要，不把扫描完成作为后台摘要已完成。
+
+每次打开文件均校验实际解析后的路径仍位于授权根下，符号链接/目录联接不能绕过根目录授权。Local Files 指 Server 可访问的文件系统：managed-local 时可配置本机目录；连接远程 Server 的 Client 所选本机路径不会因此被远程 Server 读取。客户端文件上传/共享若需要，另行设计。Docker 中配置容器内的挂载路径；默认保持音乐目录只读。
+
+### 6.4 Scraper：独立刮削插件
+Scraper 面向信息补充，不负责创建音乐来源或提供音频流。按需声明 lyrics、artwork、album.metadata 等内容能力，通过 scrape.search 返回候选、scrape.fetch 获取选定候选的内容或受限资源描述。独立管理来源账号、限流、缓存有效期及配置；音乐 Provider 的登录状态不隐式授权 Scraper 使用其凭据。
+
+请求包含目标引用、可用歌名/歌手/来源专辑/时长等查询证据、请求字段、语言和用户查询修正；必要时由 Host 授予任务范围内的只读文件引用。响应包含 candidateId、插件/来源标识、匹配依据、语言、格式、版本适用范围及可用内容；置信度仅是证据，插件不能自行合并 Recording、覆盖人工结果或修改原文件。
+
+Provider 可获得的歌词、封面等补充内容经 Scraper 适配器，与独立在线 Scraper、官方本地内容提取 Scraper 一起进入同一候选/选用流程；来源的基础标签读取仍按 6.2 节直接用于建档，本地内容提取可返回确定来源的单个候选。候选正文及下载内容经 Server 校验后落入 Media Store；远程 URL 和凭据不作为永久内容标识。下载沿用目标地址、重定向、大小与格式校验。核心在应用候选时重新校验目标修订与人工锁定，防止晚完成的自动任务覆盖新的手动选择。
 
 ## 7. API 草案与播放
 前缀 /api/v1。错误 envelope 为 code/message/requestId/retryAfter，列表使用游标，时间使用 UTC ISO 8601。
-| 路由 | 功能 |
-| --- | --- |
-| GET /health/live、/health/ready | 存活与就绪；就绪含 product=MusicFS、协议版本和 instanceId |
-| GET /providers、/provider-instances | 能力与用户可访问实例 |
-| GET /search?q=...&cursor=... | 分来源部分成功；候选关联不强制折叠 |
-| GET /recordings/{id}/sources | 可选来源与用户可用性 |
-| GET /source-tracks/{id}/media | 用户可访问的歌词/封面版本、来源、语言与当前选择 |
-| GET /media/{objectId} | 鉴权后读取独立文件内容；不返回磁盘路径 |
-| POST /metadata-jobs | 异步提取/刮削，返回 jobId；不隐式开启原文件写入 |
-| POST /metadata-write-jobs | 按已授权配置写入本地原文件，绑定预期资产版本，返回 jobId |
-| GET /playlists、/playlists/{id}/entries | 歌单与固定 revision 分页 |
-| POST /playlists/{id}/bindings | 配置子歌单引用 |
-| POST /sync-jobs | 异步同步，返回 jobId |
-| POST /playback/sessions | recordingId/sourceTrackId、偏好、客户端能力 |
-| POST /playback/sessions/{id}/fallback | 播放失败后排除已失败来源并重新解析 |
-| GET /playback/sessions/{id}/stream | 会话流代理 |
-| GET /events | WebSocket 任务/歌单/可用性通知 |
+| 路由                                    | 功能                                                      |
+| --------------------------------------- | --------------------------------------------------------- |
+| GET /health/live、/health/ready         | 存活与就绪；就绪含 product=MusicFS、协议版本和 instanceId |
+| GET /providers、/provider-instances     | Music Provider 能力与用户可访问实例                                      |
+| GET /scrapers、/scraper-instances | 独立刮削插件、能力、启用状态与用户可访问实例 |
+| POST /provider-instances/{id}/scan-jobs | 对本地/NAS Provider 手动触发全量或增量扫描，返回 jobId |
+| GET /search?q=...&cursor=...            | 分来源部分成功；候选关联不强制折叠                        |
+| GET /recordings/{id}/sources            | 可选来源与用户可用性                                      |
+| GET /source-tracks/{id}/media           | 用户可访问的歌词/封面版本、来源、语言与当前选择           |
+| GET /media/{objectId}                   | 鉴权后读取独立文件内容；不返回磁盘路径                    |
+| POST /metadata-jobs                     | 按目标、Scraper 与字段创建自动或手动预览任务；返回 jobId，不开启原文件写入           |
+| GET /metadata-jobs/{id} | 任务进度、逐目标状态、候选和预览资源引用 |
+| POST /metadata-jobs/{id}/apply | 提交所选候选/字段并校验目标修订；手动应用记录人工锁定 |
+| POST /metadata-jobs/{id}/cancel | 取消尚未应用的工作，保留已发布内容 |
+| POST /media | 上传歌词/封面或保存编辑后的内容为新文件对象，不直接替换当前选择 |
+| PUT /source-tracks/{id}/media-selection | 选择已有/上传的内容并设置人工锁定，使用目标修订检测冲突 |
+| POST /metadata-write-jobs               | 按已授权配置写入本地原文件，绑定预期资产版本，返回 jobId  |
+| GET /playlists、/playlists/{id}/entries | 歌单与固定 revision 分页                                  |
+| POST /playlists/{id}/bindings           | 配置子歌单引用                                            |
+| POST /sync-jobs                         | 异步同步，返回 jobId                                      |
+| POST /playback/sessions                 | recordingId/sourceTrackId、偏好、客户端能力               |
+| POST /playback/sessions/{id}/fallback   | 播放失败后排除已失败来源并重新解析                        |
+| GET /playback/sessions/{id}/stream      | 会话流代理                                                |
+| GET /events                             | WebSocket 任务/歌单/可用性通知                            |
 修改聚合规则采用 revision/If-Match 乐观锁；冲突返回 409。创建会话/任务支持 Idempotency-Key。事件含 eventId、revision、type；客户端重连后读最新快照，事件不承担唯一事实来源。
 
 默认代理本地/NAS、需私密请求头或浏览器不兼容的在线源；直接播放仅返回无需泄露账号密钥、客户端确实可访问的 URL。会话采用短期限定 scope 的 token，不以来源 URL 作为永久播放标识。避免 token 出现在日志；CORS 使用明确 allowlist。
@@ -161,16 +208,17 @@ SQLite 迁移前做一致性备份，不能仅复制运行中的主数据库而�
 
 ## 10. 原型与交付顺序
 [客户端线框](prototypes/client.salt.puml) 展示导航、聚合歌单、来源状态、播放条和来源弹窗。
-[连接与歌词线框](prototypes/settings.salt.puml) 展示部署模式、登录/同步状态、皮肤与歌词控制。线框使用英文标签，说明使用中文；不是可运行客户端。
+[连接与歌词线框](prototypes/settings.salt.puml) 展示部署模式、本地音乐根目录/扫描、Music Provider 与独立 Scraper 配置、手动刮削/选用/导入，以及皮肤与歌词控制。线框使用英文标签，说明使用中文；不是可运行客户端。
 
-M0：协议与模型评审；验证 NAS Range、浏览器/桌面格式、Tauri sidecar 与歌词窗口。
-M1：本地 Provider、单用户、本地歌单、文件码率探测与后台 SHA-512 精确匹配、本地歌词/封面提取与独立文件存储、Web 播放与 Server Docker/本地运行。
-M2：一个经过可行性验证的在线 Provider、导入与快照、人工关联、聚合与来源选择、歌词/封面等信息刮削及经能力验证的可选原文件写入。
+M0：两类插件协议与模型评审；验证本地/NAS 扫描和 Range、浏览器/桌面格式、Tauri sidecar 与歌词窗口。
+M1：官方 Local Files Provider、单用户、本地歌单、文件码率探测与后台 SHA-512 精确匹配；交付独立 Scraper 注册/配置与任务流程、官方本地内容提取 Scraper、手动候选预览/选用及歌词/封面文件导入，内容存独立目录；Web 播放与 Server Docker/本地运行。
+M2：接入一个经过可行性验证的在线 Music Provider 与一个独立在线 Scraper，分别验收，不互为上线前置条件；导入与快照、人工关联、聚合与来源选择、自动刮削规则及经能力验证的可选原文件写入。
 M3：桌面打包、Windows 生命周期、歌词与皮肤，再扩展第二在线 Provider。
 M4：第三方插件权限隔离、多用户和远程写回按实际需求推进。
 
 验收重点：不同录音不误合并；多出处删除正确；无一致远程版本时复核删除；旧同步任务不能覆盖新结果；整首/单出处隐藏在重建后保留；同步中断保留旧快照；Range/seek 正确；来源失败有界回退；凭据不传客户端；多个 Client 启动只产生一个 Server；随 Client 启动的 Server 在最后一个 Client 退出后关闭，独立启动的保持运行；remote 模式无本地启动。
 文件匹配验收：相同文件跨路径可精确匹配且保留出处；不同歌曲即使码率相同也不误关联；同一录音转码或修改标签后不因哈希不同被强制拆分；VBR 与未知码率正确表示；文件在计算中变化不发布有效摘要；Provider 错误哈希不成为已校验证据；无完整哈希的在线来源仍可播放；匹配不跨用户泄露私有文件存在性。
 刮削与写入验收：歌词/封面正文不入数据库；默认刮削前后原音频的 SHA-512 不变；自动刷新保留人工内容；发布中断仍可读取旧文件且不误清理有效文件；备份恢复同时覆盖索引与独立内容；显式启用且具备能力时才写入原音频；写入失败可恢复，成功后新摘要生效且歌曲/歌单关联不丢失；不支持的格式或只读 NAS 不触发强行写入。
+插件与本地来源验收：没有在线 Music Provider 时仍能扫描/播放本地音乐并调用独立 Scraper；两类插件可独立启停且凭据不串用；手动预览不覆盖当前内容，选用后不会被晚完成的自动任务覆盖；本地上传/编辑不依赖第三方插件；批量刮削逐项报告失败；NAS 失挂不清空音乐库；可靠识别的文件移动保留关联，重复文件保留出处；越界路径被拒绝；远程 Client 的本机路径不会被误当成 Server 路径。
 尚未定案：Server 语言、UI 框架、原生音频库、平台 Provider 可行性、桌面各平台歌词能力。当前交付是设计与线框源码，不是实现或渲染验证完成的产品。
 待用户确认：Web 遇到不兼容格式时是否提供可选转码；跨来源续播是否必须确认时间轴兼容；是否加入音频指纹辅助匹配的设计与验证。相关方案经评审与原型验证后更新本文。
