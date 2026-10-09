@@ -143,4 +143,4 @@ Server 保留实际启动归属并维护经鉴权的 Client 租约。随 Client 
 4. Server 处理输出在真实 Web 环境播放和按时间定位，桌面原生能力单独协商；DSP 不重复，跨源无法证明时间轴兼容时提示重播。
 5. 多 Client 启停、崩溃租约回收、独立 Server 保持运行、remote 无本机启动，以及不兼容版本的可恢复升级流程。
 
-[跨端组件图](diagrams/components.puml) 展示交互边界；桌面线框与本机插件细节见 [Client 设计入口](../client/docs/design.md)。当前交付是设计文档和 PlantUML / Salt 源码，尚无可运行实现或已验证的渲染图。
+[跨端组件图](diagrams/components.puml) 展示交互边界；桌面线框与本机插件细节见 [Client 设计入口](../client/docs/design.md)。Server 与最简 Web 的当前实现范围见[实施记录](../server/docs/validation/progress.md)，本文保留长期架构，不将设计中的全部功能视为已实现。图示仍保留 PlantUML / Salt 源码，尚无已验证的渲染图。
