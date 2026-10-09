@@ -1,0 +1,61 @@
+@startuml
+title MusicFS - Components
+top to bottom direction
+skinparam componentStyle rectangle
+package "MusicFS-web" {
+ component "Reusable UI / Theme" as UI
+ component "Browser Playback" as BP
+}
+package "MusicFS-client (Tauri)" {
+ component "Bundled UI" as DUI
+ component "Desktop Playback Adapter" as DP
+ component "Lyrics Window / Server Launcher" as Native
+}
+package "MusicFS-server" {
+ component "API / Auth / Events" as API
+ component Library
+ component "Metadata Enrichment / Tag Writer" as Metadata
+ component "Playlist / Snapshots" as Playlist
+ component "Source Resolver" as Resolver
+ component "Scheduler / Provider Host" as Host
+ component "Stream Gateway" as Stream
+ database "SQLite (Indexes / Relations)" as DB
+ folder "Media Store (Files)" as Media
+}
+component "Provider Workers" as Providers
+cloud "Online Platforms" as Cloud
+folder "Local / NAS" as NAS
+UI --> API : HTTP / WebSocket
+BP --> Stream : Audio
+DUI --> API : HTTP / WebSocket
+DP --> Stream : Audio
+Native --> API : Health / Auth
+API --> Library
+API --> Metadata
+API --> Media : Authorized content
+API --> Playlist
+API --> Resolver
+Playlist --> Library
+Playlist --> Host
+Resolver --> Host
+Stream --> Host : Resolve / Refresh
+Library --> DB
+Metadata --> Library : Version / Match
+Metadata --> Host : Scrape / Authorized tag write
+Metadata --> DB : References / Task state only
+Metadata --> Media : Lyrics / Artwork / Metadata files
+Playlist --> DB
+Host --> DB
+Host --> Providers : Versioned JSON-RPC
+Providers --> Cloud
+Providers --> NAS
+note bottom of Media
+Configurable directory separate from audio files.
+No file bodies in SQLite.
+Original audio writes are disabled by default.
+end note
+note bottom of UI
+Published UI package is bundled by desktop.
+Direct playback is optional when accessible.
+end note
+@enduml
