@@ -4,6 +4,8 @@
 
 后续授权的本地 NCM 插件已完成独立解密、扫描及最简 Web 接入，沿用既有鉴权与播放协议；参考来源、配置和验收边界见 [NCM 插件说明](../server/docs/ncm.md)。该增量不代表网易云在线 Provider 或账号功能已经实现。
 
+后续[YAML配置层与读写服务](../server/docs/configuration.md)已落地，旧JSON配置不兼容；严格校验、修订保存与崩溃恢复见[配置验收](../server/docs/validation/configuration.md)。该范围不包含插件动态启停或新的Web管理入口。
+
 ## 1. 本期范围与阅读入口
 
 Server 已确定使用 Go。源码采用用户指定布局：各实现仓库的 `src/` 放源码，`src/app/` 放程序入口，其余模块按职责放在 `src/` 下；`tests/` 集中放测试。这是项目选择的布局，不声称它是 Go 唯一标准。语言和工具仍遵循 Go module、包导入、测试发现等规则。

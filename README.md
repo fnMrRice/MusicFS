@@ -6,6 +6,8 @@
 
 NCM 插件已接入本地扫描与播放，支持提取容器内的 MP3/FLAC；配置、限制和[手工验证步骤](server/docs/ncm.md#5-手工验证)集中在 [NCM 插件说明](server/docs/ncm.md)。独立 Worker、Server 回归和三项 Edge 联调已通过，证据见 [Web NCM 验证](web/docs/ncm-validation.md)；真实下载的 NCM 变体尚未验收。
 
+Server现使用[版本化YAML配置](server/docs/configuration.md)，配置读写服务支持修订检查、原子保存及恢复；旧JSON配置不兼容。保存配置与运行时应用分离，动态插件启停仍待后续实现；本轮证据见[配置验收](server/docs/validation/configuration.md)。
+
 ## 实现计划
 
 - [联合实施总览](docs/implementation.md)：P0—P8 顺序、共同 API 与验收场景。
