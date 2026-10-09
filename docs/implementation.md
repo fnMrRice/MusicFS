@@ -1,0 +1,105 @@
+# MusicFS 分阶段实施总览
+
+状态：实施计划草案；2026-10-09。本文列出 Server、Server 插件和最小 Web 的共同交付顺序与接口约定；所有阶段当前均为待实现。本次只交付文档，不创建程序、数据库或可运行服务。
+
+## 1. 本期范围与阅读入口
+
+Server 已确定使用 Go。源码采用用户指定布局：各实现仓库的 `src/` 放源码，`src/app/` 放程序入口，其余模块按职责放在 `src/` 下；`tests/` 集中放测试。这是项目选择的布局，不声称它是 Go 唯一标准。语言和工具仍遵循 Go module、包导入、测试发现等规则。
+
+| 文档 | 维护范围 |
+| --- | --- |
+| [跨端架构](architecture.md) | 长期共同约束；实现计划不得放宽身份、授权和恢复规则 |
+| [Server 实施入口](../server/docs/implementation.md) | Go 工程、配置、存储、任务、扫描、流交付与后续能力 |
+| [Server 插件实施](../server/docs/implementation/plugins.md) | 插件协议、宿主、Local Files、音频处理、Scraper 与平台适配 |
+| [Web 实施](../web/docs/implementation.md) | 文件列表、原生播放控件和最小错误/定位交互 |
+
+桌面 Client 的工程、主题、原生输出、WMF、桌面歌词和本地启动器不在这次实施计划中。既有架构保留，不能把暂不实现描述为取消需求。最小 Web 不建设搜索推荐门户、歌单编辑器、刮削管理台或视觉设计系统。
+
+## 2. 阶段、依赖与完成定义
+
+| 阶段 | Server / 插件成果 | Web 配合 | 出阶段证据 |
+| --- | --- | --- | --- |
+| P0 工程与契约 | Go module、指定目录、协议 Schema、测试样本、构建约定 | 最小页面和类型/接口约定 | 空工程可构建，契约与样本一致；还不能宣称可播放 |
+| P1 服务基础 | 配置、日志、鉴权、SQLite 迁移、持久任务 | 登录会话和统一错误 | 真实服务可启动、重启，未授权请求受拒绝 |
+| P2 插件与音乐库 | 宿主、Local Files、扫描、稳定曲目身份、列表分页 | 展示真实扫描结果 | 目录变化和失挂可区分，列表不依赖伪造数据 |
+| P3 原流播放 | 固定播放尝试、授权流、真实 Range、停止/回收 | 列表点播、播放/暂停、原流定位 | 浏览器播放真实本地文件，含非起点定位与切歌 |
+| P4 处理后播放 | FFmpeg 适配、PCM DSP、编码/封装、timeRestart、资源限制 | 按处理描述重载、曲目时间定位 | 原格式不兼容的测试文件也能播放，DSP 和定位均有证据 |
+| P5 资产识别 | 码率补全、SHA-512、指纹候选、人工关联与排除 | 展示仍保留未知值，基础播放继续 | 变更不会复用旧证据；不误把相似指纹当续播凭证 |
+| P6 补充信息 | 独立 Scraper、文件内容存储、手动/自动选用、可选写回 | 可用 API/测试客户端验收，不强加管理界面 | 正文不入 DB，默认原音乐不变，选用和恢复一致 |
+| P7 在线与聚合 | 分平台能力验证、推荐、歌单同步、保守删除、隐藏、恢复 | 能播放的来源仍走共同协议；平台特有播放器另评估 | 每平台逐能力报告；聚合、权限与失败语义正确 |
+| P8 交付 | Windows/Linux 包、容器、备份恢复、兼容报告 | 独立静态制品与实机浏览器验收 | 从空数据目录完成安装、扫描和播放，重启恢复通过 |
+
+阶段顺序为 `P0 → P1 → P2 → P3 → P4`；P5、P6、P7 在相关基础满足后可分支开发，P8 验收所声称支持的阶段。P3 是第一次可播放里程碑；本期基本可用交付至少通过 P4 及对应 P8 子集。不能把模拟列表、HTTP 200、生成整个文件后才可播放或只有播放器时间增长当成完整播放验证。
+
+每个步骤记录：状态（待实现/进行中/已验证/阻塞）、对应提交、自动测试结果、人工验收记录和已知限制。当前全部标为待实现；执行者完成一项后再补证据，不预先勾选。P5—P7 不阻塞首个可播放版本，但文档应保留完整任务，不能据此承诺已支持所有平台。
+
+## 3. 最小联合契约
+
+业务前缀为 `/api/v1`。Server 的 `docs/contracts/` 后续保存机器可验证的定义；下表是 P0 需要落地的清单，不是已存在 API。
+
+| API | 首次需要 | 请求和响应要点 |
+| --- | --- | --- |
+| GET /health/ready | P1 | product、instanceId、apiVersion、ready；仅就绪不等于已登录 |
+| POST /auth/session | P1 | 以 Authorization Bearer 提交管理员引导凭据，交换 HttpOnly 会话 Cookie 与 csrfToken |
+| GET /auth/session | P1 | 当前用户、权限、csrfToken、有效期；未登录 401 |
+| DELETE /auth/session | P1 | 撤销当前会话及关联授权；带 CSRF 校验 |
+| GET /provider-instances | P2 | 当前用户可见实例的 id、名称、角色能力、可用性和账号状态；不返回凭据/磁盘根路径 |
+| POST /provider-instances/{id}/scan-jobs | P2 | mode=full/incremental，返回 jobId；重复任务合并规则明确 |
+| GET /scan-jobs/{id} | P2 | 状态、进度、完整性、错误与 lastSuccessAt |
+| GET /source-tracks | P2 | providerInstanceId、limit、cursor；返回 items、nextCursor、libraryRevision |
+| POST /playback/sessions | P3 | sourceTrackId、偏好、终端能力；返回 sessionId 与播放描述 |
+| DELETE /playback/sessions/{id} | P3 | 幂等停止；禁止其他用户关闭会话，释放资源 |
+| GET /playback/sessions/{id}/attempts/{attemptId}/stream | P3 | 使用返回的 opaque streamUrl；支持 Cookie、HEAD 及已声明的 Range |
+| POST /playback/sessions/{id}/seek | P4 | attemptId、positionMs、Idempotency-Key；timeRestart 返回新尝试/地址 |
+| POST /playback/sessions/{id}/recover | P3/P4 | attemptId、可观察错误、positionMs、Idempotency-Key；按已实现能力恢复或明确报错 |
+
+P3 的 recover 只处理已经支持的同源情况，不为通过接口测试而伪造跨来源能力。P5—P7 所需匹配、内容、歌单与推荐接口沿用跨端架构，并在实现对应阶段时补完整 Schema 和契约测试。
+
+### 3.1 文件列表
+
+条目至少包含 sourceTrackId、providerInstanceId、displayName、title、artists、durationMs、codec、container、bitrateBps、availability、assetId；metadata/asset 尚未探测完成允许 null。路径仅可返回经选择的展示名称，不返回 Server 的磁盘绝对路径。浏览器按标识请求播放，不能把列表项拼接成文件 URL。
+
+排序采用稳定规则加 sourceTrackId 消除同名歧义。首请求固定 libraryRevision；cursor 绑定用户、实例过滤、排序和修订。扫描完成发布新修订不会改变已有分页。快照已回收返回明确的 `CURSOR_EXPIRED`，Web 清空当前分页再刷新，不把新旧修订拼接。列表读取来自已发布的持久音乐库，不在每个 HTTP 请求中扫描磁盘。
+
+### 3.2 播放描述与客户端状态
+
+描述至少覆盖：sessionId、attemptId、assetId、representationId、deliveryMode、outputProfile、streamUrl、expiresAt、seekMode、seekableRange、positionOriginMs、effectiveProcessing、resumeDecision。绝对时间为 UTC ISO 8601，时长/曲目位置为毫秒。outputProfile 记录 codec、container、MIME 和传输方式；尚未知的属性不得伪造。
+
+切歌代次与同曲定位意图分别管理。切歌或停止废弃旧会话，晚响应不能改变新歌状态；对仍活动的同一会话，seek/recover 共用串行控制队列，最多一个请求在途，连续定位只保留最新待执行目标。在途操作返回后，即使已有更新目标，也先记录它返回的当前 attemptId，再以该标识发起下一次操作；可以跳过中间输出的播放，不能丢弃已生效的控制状态。
+
+每次新操作使用独立 Idempotency-Key，同一操作的网络重试使用原键。中止 fetch 不代表服务端撤销；结果不明先以原键有界重试确定结果，仍不能确认则停止自动控制并提供重新播放入口，不能盲用旧 attemptId 发起新操作。Server 同时串行化会话变更，校验预期 attemptId，重放幂等结果并拒绝冲突。幂等记录的有效期必须覆盖声明的重试窗口，过期结果明确要求重建。
+
+同源输入/输出完全未变的授权刷新可保留尝试；更换表示、参数或生成起点必须新尝试、新地址。同源同资产且输出时间关系已验证的重建不要求 Recording；跨源续播仍需共同架构规定的三项证据。不得拼接不同文件字节，也不得在新的转码片段上设置原文件的字节偏移。
+
+byteRange 仅用于真正可随机访问的稳定表示。timeRestart 通过 POST seek 返回新起点，Web 加载新流并使用映射展示曲目位置；原生 audio 的片段进度条不等于完整曲目定位器，可增加一个简单的曲目时间输入。未验证定位的中间版本只能声明 none，且不能通过 P4 完整验收。
+
+### 3.3 同源连接与会话
+
+开发时通过 Web 开发服务器代理 `/api`；交付时以反向代理把静态页面和 API 放在同一来源。Server 可提供可选的 `--web-root` 读取已构建静态制品，便于本机验收；Web 源码不因此进入 Server Git 仓库。
+
+最小界面允许一个简单凭据输入框。引导凭据来自显式配置或管理命令，不出现在普通服务日志、页面地址或浏览器持久存储。首次 POST /auth/session 尚无会话 CSRF，使用显式 Bearer 凭据并严格检查允许的 Origin；不能要求先持有登录后才取得的 CSRF。登录后使用 HttpOnly、SameSite=Strict 会话 Cookie；HTTPS 使用 Secure，loopback HTTP 开发例外必须显式限制。此后的状态修改（包括退出）使用会话 CSRF token 并验证 Origin，身份与流资源仍按用户/会话授权。
+
+原生 audio 请求不能依赖 JavaScript 设置自定义 Authorization 头；streamUrl 在本期为可用会话 Cookie 访问的同源地址。地址虽不可预测也不等于获得授权。不要把整首歌 fetch 为 Blob 绕过流鉴权，不通过通配 CORS 解决开发代理问题。
+
+## 4. 联合验收场景
+
+| 编号 | 输入 / 操作 | 应看到的结果 |
+| --- | --- | --- |
+| E2E-01 | 空数据目录启动，登录，扫描测试目录 | 页面显示真实文件；重启后无需重新扫描才能列出已入库内容 |
+| E2E-02 | P3 已验证格式，点击播放、暂停、恢复、定位到中段 | 声音及进度正确，网络确为流式读取，定位走有效 Range |
+| E2E-03 | 连续快速切换 A/B/A，取消旧请求 | 最终只播放最新选择，无旧音频突然恢复 |
+| E2E-04 | 不支持直放的合法测试音频，要求 Server DSP | 返回处理描述，处理后有声播放，DSP 改变可测且未改原文件 |
+| E2E-05 | P4 定位到非零位置，再迅速定位第二次 | 新 attempt/URL 生效，显示曲目时间，晚响应不倒退 |
+| E2E-06 | 会话失效、文件消失、NAS 失挂、FFmpeg 缺失 | 显示可理解状态，无无限重试或清空音乐库 |
+| E2E-07 | 使用另一用户/会话访问已知 streamUrl 或媒体对象 | 请求被拒绝，不泄露磁盘路径和凭据 |
+| E2E-08 | 浏览器关闭/停止后观察服务 | 空闲宽限期后无无主处理进程、无限缓存增长或卡住的任务 |
+
+使用项目生成或授权可分发的短音频，包含可识别的不同时间段/声道标记、静音前缀及损坏样本。记录输入摘要、期望内容、生成参数和许可。真实浏览器人工试听与输出片段检查共同验证声音和定位，自动测试负责状态、权限、取消和协议边界。至少明确验证 Windows 上的实际浏览器，以及 Linux Server 部署；不将自动化浏览器所带 codec 当全部用户环境。
+
+## 5. 协作、阶段扩展与参考
+
+Server 核心、插件和 Web 使用本表阶段编号；各自文档进一步用 S-Px-步骤、PL-Px-步骤、W阶段.步骤 标识任务。共享协议变动先更新契约和本文，再同步两端消费者；内部组织调整留在本端文档。未实现功能应返回明确的能力/错误，不能用空成功响应代替。
+
+平台接口可参考现有开源实现。具体项目、许可证、核查状态和用途见 [Server README 参考清单](../server/README.md)；参考不等于已成为依赖或已通过平台联调。Apple Music 等需区分目录/用户数据 API 与官方播放器授权，不能假定能经 Server 获取裸流并处理。
+
+工程组织依据 [Go module 文档](https://go.dev/doc/modules/layout)和[测试工具文档](https://pkg.go.dev/testing)；本项目具体目录以用户指定结构及各端实施文档为准。

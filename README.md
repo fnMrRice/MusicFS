@@ -2,7 +2,16 @@
 
 可自托管的音乐聚合系统，通过 Music Provider 统一管理本地音乐文件、挂载 NAS 与在线来源，提供音乐库、聚合歌单和播放；通过独立 Scraper 插件提供歌词/封面等信息的自动与手动刮削。
 
-当前阶段：架构设计与线框草案，尚无可运行实现。本仓库只维护 Server 与客户端共同遵守的架构和协议约定；单端内部设计放在各自仓库。
+当前阶段：架构设计与分阶段实现计划，尚无可运行实现。Server 主语言已确定为 Go，本期实现计划覆盖 Server、Server 插件和仅含文件列表/播放的最小 Web。本仓库维护跨端架构、协议与联合交付约定；单端内部设计和实现步骤放在各自仓库。
+
+## 实现计划
+
+- [联合实施总览](docs/implementation.md)：P0—P8 顺序、共同 API 与验收场景。
+- [Server 分阶段实施](server/docs/implementation.md)：工程基础、音乐库、原流与处理后播放、匹配、刮削、在线来源及交付。
+- [Server 插件实施](server/docs/implementation/plugins.md)：Local Files、音频处理、独立 Scraper 和平台 Provider。
+- [最小 Web 实施](web/docs/implementation.md)：真实列表、登录、播放控件、定位与浏览器验收。
+
+源码采用 `src/`，程序入口放 `src/app/`，实现模块放在 `src/` 对应目录，测试统一放各实现仓库根目录的 `tests/`。P3 首次完成本地文件经 Web 实际播放，P4 补齐服务端解码、DSP、编码/封装及定位；基本可用交付需通过 P4 与对应 P8 验收。桌面 Client 的实现不在本轮计划内。
 
 ## 设计文档
 
@@ -34,3 +43,13 @@
 ## 文档维护
 
 先阅读[工作约定](AGENTS.md)。跨端协议和协作变更更新本仓库；Server、Client、Web 内部设计更新对应仓库。调整目录或文档入口时同步维护 README。文件移动、重命名使用 `git mv`，内部文档使用相对链接。
+
+## 开源项目参考
+
+在线平台插件计划参考下列项目；完整用途、许可证、核查日期和采用记录要求见 [Server README](server/README.md#开源项目参考)。目前仅作参考，尚未引入代码或验证平台播放能力。
+
+| 平台 | 参考项目 |
+| --- | --- |
+| 网易云音乐 | [NeteaseCloudMusicApiEnhanced/api-enhanced](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced) |
+| QQ 音乐 | [jsososo/QQMusicApi](https://github.com/jsososo/QQMusicApi) |
+| Apple Music | [zachomedia/apple-music-webplayer](https://github.com/zachomedia/apple-music-webplayer)，MusicKit 浏览器集成示例 |

@@ -19,6 +19,8 @@ Server 后续在自身 `docs/contracts` 维护 OpenAPI、事件 Schema 和带版
 
 内部文档使用相对链接，跨仓库链接依赖根目录下同时检出 `server/`、`client/`、`web/` 的工作区布局。
 
+当前 Server / 插件 / 最小 Web 的交付顺序与联合验收见[分阶段实施总览](implementation.md)。本文保持长期契约，具体模块和实现步骤由对应仓库维护。
+
 ## 2. 跨端职责与可见能力
 
 Server 汇集本地音乐文件、已挂载 NAS 与在线平台来源，提供统一音乐库、歌单、来源选择和音频交付；Client / Web 负责展示、用户操作和播放。Local Files Provider 属于首版范围：这里的“本地”指 Server 可访问的文件系统，远程 Client 的本机路径不能直接交给远程 Server 读取。客户端上传或共享整首音频若需要，另行设计。
@@ -54,9 +56,12 @@ Server 返回的资产信息可包含 codec、container、durationMs、bitrateBp
 | 路由 | 共同语义 |
 | --- | --- |
 | GET /health/live、/health/ready | 存活/就绪及必要的 MusicFS 身份、协议版本和 instanceId；就绪不代替授权握手 |
+| POST /auth/session、GET /auth/session、DELETE /auth/session | 最小 Web 的凭据交换、会话恢复与退出；流使用同源会话授权 |
 | GET /providers、/provider-instances | 用户可访问的 Music Provider 实例、能力及账号状态 |
 | GET /scrapers、/scraper-instances | 独立刮削插件、实例、能力及状态 |
 | POST /provider-instances/{id}/scan-jobs | 触发授权本地/NAS 来源的扫描，返回 jobId |
+| GET /scan-jobs/{id} | 扫描状态、进度、完整性、错误与上次成功时间 |
+| GET /source-tracks | 用户可见来源曲目，按实例过滤与固定 libraryRevision 游标分页 |
 | GET /search?q=...&cursor=... | 按来源部分成功，候选关联不强制折叠 |
 | GET /recordings/{id}/sources | 可选来源、音质信息与当前用户可用性 |
 | GET /recommendations/playlists?providerInstanceId=...&cursor=... | 按实例及当前账号获取推荐；返回出处、分页、有效期和 stale/失败状态 |
@@ -71,12 +76,15 @@ Server 返回的资产信息可包含 codec、container、durationMs、bitrateBp
 | PUT /source-tracks/{id}/media-selection | 按预期修订选择内容并记录人工锁定 |
 | POST /metadata-write-jobs | 按既有授权配置、预期资产版本申请写入原文件，返回任务状态 |
 | POST /playback/sessions | 提交 recordingId/sourceTrackId、偏好和客户端能力，返回播放描述 |
+| DELETE /playback/sessions/{id} | 幂等停止本人会话并释放资源 |
 | POST /playback/sessions/{id}/recover | 提交 attemptId、可观察故障和 positionMs 曲目时间，取得恢复描述或明确的用户操作要求 |
 | POST /playback/sessions/{id}/seek | 对 timeRestart 输出提交 attemptId、positionMs，返回新尝试和新输出地址 |
 | GET /playback/sessions/{id}/attempts/{attemptId}/stream | 鉴权交付该次尝试的固定表示；客户端使用返回的 streamUrl，不自行拼接 |
 | GET /events | WebSocket 任务、歌单、可用性与会话事件 |
 
 创建任务、会话及可能重试的播放控制请求支持 `Idempotency-Key`；seek/recover 必须校验请求所属尝试，过期请求不能覆盖较新的播放状态。采用 `If-Match` 的修订检查失败返回 412，其他业务状态冲突使用明确的 409 错误。事件含 eventId、revision、type；重连读取最新快照，事件不是唯一事实来源。Provider 账号无权限、来源暂不可用、客户端不支持和任务失败应分别呈现。
+
+最小 Web 首次登录用显式 Bearer 凭据和允许的 Origin 校验，取得 HttpOnly 会话 Cookie 与 CSRF token；登录后的状态修改（包括退出）校验会话 CSRF 和 Origin。原生 audio 通过同源 Cookie 访问授权流，无需把凭据放入 URL。详细边界见[联合实施契约](implementation.md#33-同源连接与会话)。
 
 ## 5. 播放协商、定位与恢复
 
@@ -93,7 +101,7 @@ Client / Web 上报实际可用的 codec、container、MIME、传输方式、定
 
 本地/NAS 或需要私密请求头的来源由 Server 交付。直放地址必须允许客户端访问且不泄露账号凭据；短期播放授权仍须限制用户、资源、用途和有效期。原始字节代理只声明实际具备的 Range 能力，上游不支持时不伪造 206。处理后输出不继承原文件的字节偏移、长度或验证器；byteRange 只适用于稳定且可随机访问的输出表示。
 
-timeRestart 定位通过时间请求重新生成输出，客户端加载新的 streamUrl，按 positionOriginMs 和时间映射显示曲目进度；不能把原文件字节偏移应用到转码流。客户端保留最新播放代次，丢弃旧请求返回的描述；处理配置变化也必须协商新表示。同源输出重建在曲目时间到新输出的映射已验证且可定位时恢复，不要求该 SourceTrack 已关联 Recording；资产内容变化则必须重新验证时间关系。
+timeRestart 定位通过时间请求重新生成输出，客户端加载新的 streamUrl，按 positionOriginMs 和时间映射显示曲目进度；不能把原文件字节偏移应用到转码流。客户端忽略旧歌曲/会话的返回；同会话 seek/recover 串行执行，先确认在途操作返回的 attemptId，再执行合并后的最新定位意图。取消 HTTP 不等于撤销已发生的服务端变更，结果不明通过同键有界重试确定；细则见[联合实施契约](implementation.md#32-播放描述与客户端状态)。处理配置变化也必须协商新表示。同源输出重建在曲目时间到新输出的映射已验证且可定位时恢复，不要求该 SourceTrack 已关联 Recording；资产内容变化则必须重新验证时间关系。
 
 播放失败时客户端报告 attemptId、观察到的错误与曲目时间，Server 决定有限的同源刷新或换源。浏览器不必识别上游 URL 过期的具体 HTTP 原因。恢复同时限制同源刷新次数、不同来源数（最多 3 个）及总时间预算；同次故障的重复请求不能不断重置预算。
 
