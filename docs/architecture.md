@@ -1,224 +1,138 @@
-# MusicFS 架构设计
-状态：设计草案 v0.3；2026-10-09。本文由 MusicFS 总项目仓库维护，是三个实现仓库的架构事实来源，未实现的功能不得描述为已完成。
+# MusicFS 跨端架构设计
 
-## 1. 目标与边界
-MusicFS 是可自托管的音乐聚合系统。Server 通过音乐来源插件 Music Provider 接入本地音乐文件、已挂载 NAS 目录与在线平台，管理统一音乐库及聚合歌单；本地文件 Provider 是第一版正式设计范围，不依赖在线平台账号。Web 与桌面 Client 展示并播放。桌面端优先 Tauri，提供桌面歌词、皮肤与 Windows 本地 Server 启动。
-Server 通过独立的 Scraper 刮削插件获取歌词、封面及专辑等补充信息，支持自动任务与手动检索、预览、选用。Scraper 可使用独立数据源，不要求由音乐 Provider 提供或依赖某个在线音乐 Provider。歌词、封面等内容保存为独立目录中的文件，数据库仅保存索引与关联；默认不修改原始音频，允许显式配置将选定内容写入本地/NAS 原始音频文件。
-网易云、QQ 音乐是目标 Provider，并非已验证可用的接口。接入可行性、登录方式、播放与歌单能力须分别验证；平台账号权限、接口变动、付费歌曲可用性由 Provider 显式返回，不承诺全量支持。
-第一版不做微服务、多语言插件运行时、双向平台歌单写回、云端账号共享或默认转码。
+状态：设计草案 v0.4；2026-10-09。本文只定义 Server 与桌面 Client / Web 之间共同遵守的职责边界、数据语义、协议和协作流程，不代表功能已经实现。
 
-## 2. 仓库与协议所有权
-| 仓库           | 职责                                                     |
-| -------------- | -------------------------------------------------------- |
-| MusicFS        | 总体架构、共享设计、图示与线框                           |
-| MusicFS-server | 核心、Music Provider / Scraper 插件 SDK、数据库迁移、部署、OpenAPI 与事件协议 |
-| MusicFS-web    | 浏览器 UI、浏览器播放适配器、皮肤、消费生成的 SDK        |
-| MusicFS-client | Tauri 壳、桌面播放适配器、歌词窗口、启动器、桌面打包     |
-Server 的 docs/contracts 后续存放 OpenAPI 与 JSON Schema，发布带版本的客户端 SDK。Web 发布可复用 UI 包，Client 固定版本依赖它，而非运行时依赖在线 Web 站点。桌面发行包内嵌 UI，避免 UI 代码在两仓库复制。
-协议独立于实现语言。建议评估 Rust Server + SQLite、TypeScript UI 和 Tauri Rust 宿主；Server 语言与前端框架仍待技术验证。不采用跨编译器 C++ ABI 作为第三方插件协议。
+## 1. 文档范围与仓库分工
 
-## 3. 模块
-API Gateway：鉴权、请求校验、分页、幂等、统一错误。
-Library：规范化元数据、录音版本、文件资产、码率与 SHA-512 匹配证据、候选关联、人工关联与禁止关联。
-Metadata Enrichment：调度独立 Scraper、管理候选与适用版本、手动预览/选用及自动应用策略；通过核心流程执行受配置控制的原文件标签写入。
-Playlist：本地歌单、远程快照、聚合规则、快照版本与来源追溯。
-Resolver：按用户配置筛选账号权限、可用性、音质、来源优先级，创建短期播放会话。
-Plugin Host：共用插件生命周期、版本协商、取消、限流、超时与错误映射；Music Provider 和 Scraper 使用独立的角色注册、实例配置、凭据与权限。Provider 接入音乐来源，Scraper 只返回刮削候选与内容，均不直接修改核心数据库。
-Scheduler：NAS 扫描、后台文件探测与 SHA-512 计算、刮削与标签写入任务、远程同步、退避重试、恢复任务、并发控制。
-Stream Gateway：本地文件/远程字节流转发、Range、会话鉴权、过期刷新；默认不解码。
-Storage：SQLite WAL、单写入队列、Media Store 独立文件目录与可重建缓存；数据库不存歌词正文、封面或其他文件内容，账号密钥独立保护。
-详见 [组件图](diagrams/components.puml)。
+单端实现细节由对应仓库维护。主目录不定义 Server 的数据库结构、扫描/刮削调度、插件内部接口，也不定义 Client 的播放器核心、主题、解码/DSP 或外部控制插件内部接口。
 
-## 4. 核心实体
-| 实体                | 标识与语义                                                                                                         |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Recording           | 内部 UUID；某个录音版本，Live/Remix/翻唱分别建模                                                                   |
-| SourceTrack         | providerInstanceId + externalId 唯一；某平台或本地文件的曲目                                                       |
-| SourceAsset         | 内部 assetId；SourceTrack 下某一音质的具体文件字节版本，保存码率、大小与 SHA-512；同一曲目可有多个资产             |
-| MediaObject         | 歌词/封面/刮削原文的文件索引；objectId、类型、相对路径、MIME、大小、摘要、来源、版本、状态与访问归属，不含文件正文 |
-| MediaBinding        | 将 MediaObject 关联到来源曲目、文件版本或来源专辑/发行版本；记录语言、歌词时序适用范围、人工选择与优先级           |
-| RecordingSourceLink | 来源关联、匹配依据、置信度、人工/自动状态                                                                          |
-| MatchExclusion      | 用户禁止关联的来源对，自动匹配不可覆盖                                                                             |
-| ProviderInstance    | Music Provider 插件 + 实例 + 来源配置；可配置多个本地目录/NAS 实例                                                                       |
-| ProviderAccount     | userId + instanceId + accountId；密钥不出 API                                                                      |
-| ScraperInstance | Scraper 插件与独立实例/配置、能力、启用状态和优先级；按实例和用户管理账号/凭据，不复用 ProviderAccount |
-| ScrapeJob / ScrapeCandidate | 目标、触发方式、所选插件/字段、查询条件、状态与候选引用；记录插件版本及依据，正文仍在 Media Store |
-| Playlist            | 用户拥有的本地/远程/聚合歌单                                                                                       |
-| PlaylistEntry       | 稳定 entryId、顺序、来源曲目，可保留未匹配项                                                                       |
-| PlaylistBinding     | 聚合歌单引用的子歌单、排序、来源约束                                                                               |
-| PlaylistSnapshot    | revision、同步状态、生成时间、不可变条目                                                                           |
-| EntryProvenance     | 聚合条目对应的原歌单与原 entryId                                                                                   |
-| PlaybackSession     | 用户、设备、来源、当前 assetId、音质、过期时间、已尝试来源                                                         |
-作品层可后续添加；不以“歌名 + 歌手”作为唯一键。时长、专辑、版本标识、ISRC 等只作证据。候选匹配不直接销毁来源记录；人工合并/解除均保留审计与可逆关联。未匹配来源仍可播放。
-用户归属从第一版预留，第一版可只启用一个管理员。全局录音元数据与用户歌单、账号、播放状态分开；不能通过共享元数据推断其他用户私人文件。
-
-### 4.1 文件信息与匹配依据
-后端记录音乐的码率和 SHA-512，归属具体 SourceAsset，不在 Recording 或 SourceTrack 上保存一个会被不同音质相互覆盖的值。资产的字节版本身份不可变，探测结果可逐步补齐；文件内容变化时创建新资产版本并重新校验，不直接替换已有播放会话的资源。
-
-| 字段                         | 语义                                                                                                                                                   |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| codec、container、durationMs | 编码、封装及音频时长；未知值为 null                                                                                                                    |
-| bitrateBps、bitrateMode      | 音频码率，单位 bit/s；CBR 记录固定码率，VBR 记录平均码率；模式为 cbr/vbr/unknown，无法取得码率时为 null，不以 0 表示未知                               |
-| bitrateOrigin                | provider/probe/estimate；区分平台申报、文件探测与估算，保留申报值及其来源，避免混淆音质档位名称与实测码率                                              |
-| fileSizeBytes                | 完整文件的字节数；未知值为 null                                                                                                                        |
-| fileSha512                   | Server 对完整原始文件字节计算的 SHA-512，包含容器、标签及内嵌封面；存储为 64 字节，协议表示为 128 个小写十六进制字符；未完成计算时为 null              |
-| providerSha512               | Provider 申报的完整文件 SHA-512，可为空；与 Server 计算值分开保存，不将其他哈希、ETag 或音频载荷摘要填入此字段                                         |
-| hashStatus、hashComputedAt   | pending/verified/unavailable/failed/invalidated；verified 仅表示 Server 已完整读取并计算该稳定版本，附计算时间；另记录 Provider 申报值是否与计算值一致 |
-
-码率用于音质筛选、展示和匹配的辅助证据，不作为曲目唯一键，也不能单凭码率相同自动关联。不同编码之间不能直接以码率高低判断音质优劣。整文件大小包含标签与容器开销，不能直接用 fileSizeBytes / durationMs 代替精确音频码率。
-
-文件级精确匹配使用已校验的 fileSha512 与 fileSizeBytes；相同内容仍保留各自来源记录、账号权限与出处，不触发源文件删除。匹配只能在用户可访问的范围内进行，人工禁止关联和已有冲突优先于自动关联。Provider 申报哈希仅作为待校验证据；申报与计算不一致时记录冲突，撤销依赖错误申报值的自动匹配证据。
-
-不同码率、转码、重新封装或仅修改标签均可能改变整文件 SHA-512，因此哈希不同不能判定为不同 Recording。跨文件版本仍结合元数据、时长与人工确认关联；音频指纹是否纳入自动候选匹配另行确认，不把 SHA-512 当作音频指纹。摘要范围依据 [SHA-512 标准](https://csrc.nist.gov/pubs/fips/180-4/upd1/final)，文件探测器选型仍待验证。
-
-本地/NAS 文件在扫描后由低优先级、限并发且可取消的任务流式计算摘要，不将整个文件载入内存、不阻塞首次入库或播放。计算绑定稳定的读取版本，结合文件标识、大小、修改时间等检测变化；这些属性只是失效线索。读取期间发现变化则丢弃本轮结果并重试，无法保证读取自同一版本时不标记 verified；后续文件变化时旧资产不再代表当前文件，撤销据旧版本对当前文件作出的自动匹配证据，历史版本摘要仍可保留。
-
-在线来源允许码率或哈希暂时未知。仅在权限与 Provider 能力允许、且已完整读取同一版本全部文件字节时计算摘要；不为匹配强制预下载每首歌曲，不把部分 Range、乱序或重复片段当作完整文件计算。无法取得完整文件时标记 unavailable，不阻止已有权限下的播放。未取得完整 SHA-512 时，播放资源的一致性仍可使用可靠的强验证器；资源变化后必须重新加载，不能沿用旧文件的字节偏移。
-
-### 4.2 信息刮削与独立文件存储
-Server 的 Metadata Enrichment 统一调度独立 Scraper 插件，Web/Client 通过 Server 获取结果。插件可仅提供歌词、封面、专辑信息中的部分能力；数据源可以是独立元数据服务、本地内嵌标签/旁置文件或经适配的音乐平台。即使只配置本地文件 Provider，也可以启用独立在线 Scraper；不要求先添加在线音乐账号。具体在线刮削来源、登录条件与可用能力需逐个验证，不预设某个平台必定提供歌词或封面。
-
-自动刮削按音乐库规则配置启用时机、Scraper 实例/顺序、目标字段与选用策略，默认只补缺失且有充分匹配依据的内容；歧义候选保留待选，不任意覆盖人工结果。失败保留已有内容并记录状态，不阻塞音乐入库或播放。自动和手动任务共用插件调用与内容发布流程，手动刮削不是另一套内置平台爬虫。
-
-手动刮削支持单曲、来源专辑和批量选择：用户选择目标、Scraper 与字段，可调整歌名/歌手等查询条件；Server 调用插件检索候选，界面展示来源、封面预览、歌词语言/时序及匹配依据，再由用户逐字段或按批次选用。候选预览不会立即替换已发布内容；应用时校验目标修订，成功后保存为人工选定并锁定，后续自动任务不能覆盖。批量任务逐项报告结果，支持取消、仅重试失败项及排除某个插件。
-
-用户也可直接上传封面/歌词、编辑歌词或更换已选内容，经相同核心校验与文件存储流程发布；本地手工内容不依赖第三方插件可用。手动触发、选用或上传均不自动打开原文件写入开关。
-
-可配置 mediaRoot，默认位于 Server 数据目录下，与音乐目录分离。例如：
-
-```text
-data/media/
-  lyrics/<objectId>.lrc       # Timed lyrics; plain text uses .txt
-  covers/<objectId>.jpg       # Extension follows the actual image format
-  metadata/<objectId>.json    # Complete scraped metadata or raw responses
-  staging/                   # Unpublished temporary files
-```
-
-歌词正文、封面图片、缩略图及完整刮削文档均以文件形式保存，不放入数据库 BLOB、Base64 或 JSON 正文字段。数据库仅保存 MusicFS 需要查询的规范化字段，以及文件路径、摘要、来源、关联、修订和任务状态等索引信息。歌词原文、翻译、逐行/逐字时序可分别保存；非 LRC 格式按实际格式存文件，不强制丢弃信息。路径使用服务端生成的 objectId，数据库记录相对 mediaRoot 的路径，客户端只拿受鉴权的对象 URL，不暴露服务器文件路径。
-
-歌词关联当前来源与录音版本，不能仅凭歌名复用时序；封面关联来源专辑/发行版本，不因 Recording 合并而覆盖不同版本封面。保留内容来源与获取时间，人工上传、编辑或明确选定的结果优先，自动刷新不覆盖人工结果。独立文件是默认的持久内容存储，人工内容不按普通缓存自动淘汰。
-
-每次更新生成新的不可变内容文件，先写临时文件、校验完整性并在同一文件系统安全发布，再以数据库事务切换引用；不得假设文件系统与数据库属于同一原子事务。持久化任务状态用于崩溃恢复；未发布的临时文件和孤儿文件在宽限期后回收，保护仍被引用或由活动任务持有的对象。新文件发布失败时保留旧引用。备份包含数据库、被引用的 Media Store 文件及配置，并用版本清单保证可恢复的一致视图；缺失文件标记待修复，不能把人工内容当作一定可重新刮削的缓存。
-
-### 4.3 可选写入原始音频
-原文件写入与刮削、独立文件保存分开控制：默认 writeBack.enabled=false；开启后按本地/NAS Provider 实例、目录及字段配置，选定歌词、封面或基本标签写入原始音频的元数据区域。默认仅补充缺失字段，覆盖已有字段需显式配置；保留未选中的标签与未知标签，刮削失败或缺失不触发清空。即使开启嵌入，独立目录中的内容仍保留。本配置不授权对在线平台歌曲或远程歌单写回。
-
-仅在原文件可写、音频标签格式受支持且存储实例具备经过验证的安全替换/恢复能力时执行；能力不足时返回明确状态，仍可使用独立内容文件。写入不转码音频；具体标签库、歌词/封面格式映射待验证。写任务绑定预期 SourceAsset 并与扫描、摘要任务协调：检测并发变更，保留可恢复备份，在原文件所在文件系统准备临时副本、校验后安全替换。正在播放的文件延后写入；NAS 不支持安全替换时禁用回写，不将跨文件系统移动视为原子操作。
-
-写入过程记录阶段与前后版本，异常时恢复原文件或标记待恢复，禁止盲目重试覆盖用户的新修改。写入成功后更新文件标识与路径映射，创建新的 SourceAsset 并重新探测、计算 SHA-512；新版本不得沿用旧摘要。由 Server 确认仅改标签的写入保留 SourceTrack、Recording、歌单及人工关联，不因文件标识或 SHA-512 变化被扫描成另一首歌；旧播放会话不能静默绑定新字节版本。
-
-## 5. 歌单聚合与同步
-聚合是引用 + 可重建快照，不复制并丢弃出处。默认按 binding 顺序、子歌单原顺序合并；已确认同一 Recording 去重，未知来源按 SourceTrack 去重。去重条目保留全部出处和可选来源。
-刷新先抓取完整分页到临时快照，成功后事务性发布 revision；不完整抓取不能按缺失条目删除。有一致远程版本时固定该版本分页并验证；没有一致版本保证时，完整分页也不能证明条目已删除，缺失条目先标记疑似移除，经后续完整同步或独立查询复核后再删除其贡献。插件失败保留上次成功快照并标记 stale、lastSuccessAt、errorCode。
-子歌单删除仅移除它的贡献；仍有其他出处的条目保留。用户可隐藏聚合条目，隐藏规则与快照独立，不修改远程歌单。默认隐藏该 Recording 的全部来源，也可指定仅隐藏某个 binding/原 entryId 对应的出处。规则绑定持久身份，不绑定重建产生的展示行；未匹配条目先绑定 SourceTrack，确认关联后将整首隐藏意图迁移到 Recording。解除或拆分错误关联时，依据保存的原始目标保留隐藏意图，不能盲目扩散到所有拆分结果；无法唯一还原目标时保留原始目标规则并提示用户确认。本地追加条目作为独立 binding。聚合编辑默认仅更改本地规则。
-远程写回以后单独设计冲突与补偿，不默认同步回所有平台。源歌单循环引用必须拒绝。
-同步任务按账号/实例限流；同一歌单合并重复请求并串行同步，持久化任务代次，发布事务校验其仍为有效代次，禁止较旧或恢复的任务覆盖新结果；聚合快照记录规则版本与所引用的子快照版本。持久化任务状态，指数退避加抖动；任务支持取消，重启后恢复。凭据失效暂停相关任务并提示登录。
-
-## 6. 插件协议与音乐来源
-
-### 6.1 共用宿主与独立插件角色
-插件分为 Music Provider 与 Scraper 两类角色，均可独立安装、启停与配置。先交付官方受信任插件；第三方插件正式支持前提供进程隔离。建议 Host 与 Worker 使用版本化 JSON-RPC，经 stdio 通信；后续也可用本地 socket。不同时引入多个语言宿主。共用 Host 不表示共用实例状态或凭据；同一安装包可声明两种角色，但仍按角色分别注册和授权。
-
-manifest 包含 id、version、protocolVersion、roles、各角色的 capabilities、配置 schema 与权限。调用带 requestId、instanceRef、可选 accountRef、deadline、cursor、取消令牌；账号引用只能属于本次调用的用户和角色实例。分页结果含 nextCursor 与可用快照版本。错误码：AUTH_REQUIRED、ACCESS_DENIED、NOT_FOUND、RATE_LIMITED、TEMPORARY_FAILURE、UNSUPPORTED、UNAVAILABLE；包含 retryAfter 与可重试属性，不传出密钥。
-
-权限限定目标域名、挂载根目录或任务授权的只读资源，限制资源、日志长度和执行时间；进程隔离本身不是完整沙箱。官方插件也不获得无条件任意文件和网络访问。插件不直接写核心数据库；Scraper 无原音频写权限，回写只能走核心调度的授权 Provider 写入流程。停用/卸载 Scraper 取消其未完成任务，但保留已发布内容与来源记录，不影响已入库曲目的播放。
-
-### 6.2 Music Provider：音乐来源接入
-Music Provider 负责曲目发现、来源原始元数据、可用性与音质、歌单读取及播放资源解析，按需声明 search、metadata.read、playlist.read、stream.resolve、library.scan 等能力，不要求每个来源实现全部能力。登录、playlist.write 与本地文件 metadata.write 分别独立声明；具备写入能力不代表配置已授权，metadata.write 默认禁用。
-
-metadata.read/stream.resolve 按具体音质与文件版本返回可获得的 codec、container、durationMs、bitrateBps、bitrateMode、fileSizeBytes、providerSha512 及资源版本证据；未知值为 null，Provider 不能自行标记 Server 的 hashStatus 为 verified。resolve 另返回 MIME、质量、过期时间、Range 能力、直接播放是否允许，以及仅 Server 可见的请求头；Server 据此关联或创建 SourceAsset。Provider 不决定跨源匹配、去重、全局优先级。若音乐平台同时提供歌词/封面，可通过明确注册的 Scraper 适配器接入统一候选流程，不使独立 Scraper 依赖该 Provider。
-
-### 6.3 本地音乐文件 Provider
-第一版提供官方 Local Files Provider，接入 Server 所在机器的音乐目录以及 Server 已挂载、可访问的 NAS 目录。实例配置包含允许访问的根目录、递归/排除规则、扫描策略及可选写回配置；不需要在线音乐账号。原生 SMB/NFS 等直连 NAS 协议插件属于后续独立能力验证，首版不以它们为前置依赖。
-
-本地 Provider 的能力与核心分工：
-
-| 能力 | 行为 |
+| 仓库 / 文档 | 负责内容 |
 | --- | --- |
-| library.scan | 初次全量扫描，支持手动全量/增量扫描及定期复核；文件变化通知只作为增量提示，不能代替完整复核 |
-| metadata.read | 读取文件原始标签、codec、时长、CBR/VBR 码率等已支持信息，交由核心建档；具体格式解析库与支持矩阵需验证 |
-| stream.resolve | 返回限定根目录与版本的内部文件引用、长度/MIME/Range 能力，由 Stream Gateway 鉴权后提供字节流和 seek，不向客户端返回原始路径 |
-| 受限文件读取 | 核心后台探测/SHA-512 任务可读取指定版本；本地 Scraper 可获得任务范围内的只读资源，用于提取内嵌封面、歌词及同目录旁置内容 |
-| metadata.write（可选） | 仅按 4.3 节经显式配置和能力验证后写标签，不承担自动刮削决策，不转码或删除原音乐文件 |
+| 本文 | 跨端能力协商、身份和版本、API、播放恢复、生命周期与共同验收 |
+| [Server 内部架构](../server/docs/architecture.md) | 音乐库、Music Provider、独立 Scraper、歌单同步、文件存储、任务、匹配与部署 |
+| [Server 音频处理](../server/docs/audio-processing.md) | 解复用、解码、DSP、编码/封装插件与输出管理 |
+| [Client 内部架构](../client/docs/architecture.md) | 桌面模块、插件宿主、播放器核心、窗口与本地启动器 |
+| [Client 音频与插件](../client/docs/audio-processing.md) | WMF / FFmpeg 适配、主题、DSP、切歌淡化及外部控制 API 插件 |
+| [Web 设计](../web/docs/design.md) | 浏览器 UI、能力探测与浏览器播放适配 |
 
-文件 externalId 使用 Provider 持久化分配的标识，不以绝对路径、歌名或 SHA-512 直接作为唯一身份；标识映射经 Host 的持久存储接口保存，插件不直接改核心表。保存根目录、相对路径、可用文件系统标识与观测版本；重命名/移动时依据可靠文件标识或复核证据更新映射并保持 SourceTrack。存在歧义时保留待确认候选，不把同内容的多份实际文件强行当成一次移动；相同字节的独立文件仍保留各自来源与路径。
+Server 后续在自身 `docs/contracts` 维护 OpenAPI、事件 Schema 和带版本的协议 SDK；各运行端维护自己的插件 SDK。协议不依赖实现语言，插件二进制不承诺跨运行端通用。桌面 UI 框架、渲染方式及与 Web 的复用方式待验证后确定，不以 Tauri/WebView 为前提。两个界面可以共享协议模型、资源及适用组件，复用须记录兼容版本。
 
-扫描按根目录记录代次和完整性。NAS 离线、目录不可读或扫描被取消时保留旧曲目和歌单关联，标记来源离线/扫描不完整，不按“本次未看到”批量移除；校验预期挂载/卷身份，失挂后仍存在的空目录不能视为原音乐源成功扫描。只有来源身份有效、根目录可访问且完整复核确认缺失时才更新不可用状态。重新连接后可恢复。发现文件变化则重新生成资产版本并排队探测/计算摘要，不把扫描完成作为后台摘要已完成。
+内部文档使用相对链接，跨仓库链接依赖根目录下同时检出 `server/`、`client/`、`web/` 的工作区布局。
 
-每次打开文件均校验实际解析后的路径仍位于授权根下，符号链接/目录联接不能绕过根目录授权。Local Files 指 Server 可访问的文件系统：managed-local 时可配置本机目录；连接远程 Server 的 Client 所选本机路径不会因此被远程 Server 读取。客户端文件上传/共享若需要，另行设计。Docker 中配置容器内的挂载路径；默认保持音乐目录只读。
+## 2. 跨端职责与可见能力
 
-### 6.4 Scraper：独立刮削插件
-Scraper 面向信息补充，不负责创建音乐来源或提供音频流。按需声明 lyrics、artwork、album.metadata 等内容能力，通过 scrape.search 返回候选、scrape.fetch 获取选定候选的内容或受限资源描述。独立管理来源账号、限流、缓存有效期及配置；音乐 Provider 的登录状态不隐式授权 Scraper 使用其凭据。
+Server 汇集本地音乐文件、已挂载 NAS 与在线平台来源，提供统一音乐库、歌单、来源选择和音频交付；Client / Web 负责展示、用户操作和播放。Local Files Provider 属于首版范围：这里的“本地”指 Server 可访问的文件系统，远程 Client 的本机路径不能直接交给远程 Server 读取。客户端上传或共享整首音频若需要，另行设计。
 
-请求包含目标引用、可用歌名/歌手/来源专辑/时长等查询证据、请求字段、语言和用户查询修正；必要时由 Host 授予任务范围内的只读文件引用。响应包含 candidateId、插件/来源标识、匹配依据、语言、格式、版本适用范围及可用内容；置信度仅是证据，插件不能自行合并 Recording、覆盖人工结果或修改原文件。
+界面根据 Server 返回的实例与能力展示操作，不预设每个 Provider 都能搜索、扫描、登录、读取歌单或推荐歌单。网易云、QQ 音乐是目标来源，登录、推荐、播放和付费内容能力须逐个验证。推荐结果保留平台排序、来源、账号/匿名范围、有效期与分页状态；允许按来源分栏及部分失败。打开推荐项不自动加入用户歌单，用户选择导入或绑定后才进入歌单库；推荐列表变化不删除已导入歌单，也不触发远程写回。推荐可见不代表歌曲一定可播放。
 
-Provider 可获得的歌词、封面等补充内容经 Scraper 适配器，与独立在线 Scraper、官方本地内容提取 Scraper 一起进入同一候选/选用流程；来源的基础标签读取仍按 6.2 节直接用于建档，本地内容提取可返回确定来源的单个候选。候选正文及下载内容经 Server 校验后落入 Media Store；远程 URL 和凭据不作为永久内容标识。下载沿用目标地址、重定向、大小与格式校验。核心在应用候选时重新校验目标修订与人工锁定，防止晚完成的自动任务覆盖新的手动选择。
+歌词、封面等内容由独立 Scraper 插件提供，自动与手动刮削共用候选/选用流程，不要求先启用在线 Music Provider。界面支持选择目标、插件和字段，调整查询、预览候选、逐字段选用、上传或编辑。预览不覆盖已发布内容，手动选用受修订检查并记录人工锁定；自动刷新不覆盖人工结果。取消或失败保留已发布内容，批量任务逐项显示结果。
 
-## 7. API 草案与播放
-前缀 /api/v1。错误 envelope 为 code/message/requestId/retryAfter，列表使用游标，时间使用 UTC ISO 8601。
-| 路由                                    | 功能                                                      |
-| --------------------------------------- | --------------------------------------------------------- |
-| GET /health/live、/health/ready         | 存活与就绪；就绪含 product=MusicFS、协议版本和 instanceId |
-| GET /providers、/provider-instances     | Music Provider 能力与用户可访问实例                                      |
-| GET /scrapers、/scraper-instances | 独立刮削插件、能力、启用状态与用户可访问实例 |
-| POST /provider-instances/{id}/scan-jobs | 对本地/NAS Provider 手动触发全量或增量扫描，返回 jobId |
-| GET /search?q=...&cursor=...            | 分来源部分成功；候选关联不强制折叠                        |
-| GET /recordings/{id}/sources            | 可选来源与用户可用性                                      |
-| GET /source-tracks/{id}/media           | 用户可访问的歌词/封面版本、来源、语言与当前选择           |
-| GET /media/{objectId}                   | 鉴权后读取独立文件内容；不返回磁盘路径                    |
-| POST /metadata-jobs                     | 按目标、Scraper 与字段创建自动或手动预览任务；返回 jobId，不开启原文件写入           |
-| GET /metadata-jobs/{id} | 任务进度、逐目标状态、候选和预览资源引用 |
-| POST /metadata-jobs/{id}/apply | 提交所选候选/字段并校验目标修订；手动应用记录人工锁定 |
-| POST /metadata-jobs/{id}/cancel | 取消尚未应用的工作，保留已发布内容 |
-| POST /media | 上传歌词/封面或保存编辑后的内容为新文件对象，不直接替换当前选择 |
-| PUT /source-tracks/{id}/media-selection | 选择已有/上传的内容并设置人工锁定，使用目标修订检测冲突 |
-| POST /metadata-write-jobs               | 按已授权配置写入本地原文件，绑定预期资产版本，返回 jobId  |
-| GET /playlists、/playlists/{id}/entries | 歌单与固定 revision 分页                                  |
-| POST /playlists/{id}/bindings           | 配置子歌单引用                                            |
-| POST /sync-jobs                         | 异步同步，返回 jobId                                      |
-| POST /playback/sessions                 | recordingId/sourceTrackId、偏好、客户端能力               |
-| POST /playback/sessions/{id}/fallback   | 播放失败后排除已失败来源并重新解析                        |
-| GET /playback/sessions/{id}/stream      | 会话流代理                                                |
-| GET /events                             | WebSocket 任务/歌单/可用性通知                            |
-修改聚合规则采用 revision/If-Match 乐观锁；冲突返回 409。创建会话/任务支持 Idempotency-Key。事件含 eventId、revision、type；客户端重连后读最新快照，事件不承担唯一事实来源。
+客户端按受鉴权的对象引用读取歌词、封面等内容。默认不写原始音频，允许对经过授权且支持安全写入的本地/NAS 目录启用写回。手动刮削或上传不自动开启写回；写回成功后歌曲身份和歌单关联保持，音频文件资产版本更新。独立内容文件的存储、匹配、写入和恢复机制见 Server 文档。
 
-默认代理本地/NAS、需私密请求头或浏览器不兼容的在线源；直接播放仅返回无需泄露账号密钥、客户端确实可访问的 URL。会话采用短期限定 scope 的 token，不以来源 URL 作为永久播放标识。避免 token 出现在日志；CORS 使用明确 allowlist。
-代理不缓冲整个文件；支持背压、取消、单 Range、206/416，保留准确 Content-Type；多 Range 不支持时明确返回错误。上游不支持 Range 时向客户端声明不能 seek，不能伪造 206。
-客户端报告 codec/MIME/seek 能力。Web 用浏览器播放适配器，桌面必须验证 WebView 的 FLAC 等兼容性；不支持时采用桌面原生播放适配器，暂不强制 Server 转码。
-临时 URL 失效时重新 resolve 同一来源；必要时尝试其他来源，最多 3 次不同来源，保留失败原因。只有同一录音且可 seek 的新来源才恢复原进度，否则提示从头播放。账号权限不满足与实际不可用分开显示。
-歌词优先与当前来源/版本一致，来源切换后重新校验时序；可选偏移属于用户配置。
-详见 [播放时序](diagrams/playback.puml)。
+## 3. 共同身份与版本语义
 
-## 8. 部署和 Windows 生命周期
-Docker：Server 独立运行，持久化 DB/media/cache/config，Media Store 独立于音乐目录；音乐目录默认只读挂载。仅对显式开启原文件写入的实例配置指定目录可写，其他音乐目录继续只读；插件只在授权挂载根下访问。Web 可静态托管并经同源反向代理连接 Server。
-本地：同一 Server 可执行程序，数据放用户数据目录。便携模式可显式指定独立目录；本地默认绑定 loopback，远程访问需要显式配置鉴权与 TLS。
-Client 仅对明确配置为 managed-local 的模式自动启动；remote 模式绝不启动本机 Server。
-健康检查失败不等同于进程未运行。启动器结合用户级互斥锁、受限进程身份信息、配置及端口检查；端口被其他程序占用要报错。就绪响应校验 MusicFS 身份/协议并完成授权握手，不只看 HTTP 200。
-Tauri 通过受控宿主命令启动打包 sidecar，参数白名单，不向 Web UI 暴露任意命令执行。Service/external-local 模式只连接并提示状态；不自动提权启动系统服务。
-等待带退避和总超时（建议 15 秒）；失败显示日志入口与重试。Server 记录实际启动方式：随 Client 启动的 managed-local 实例在最后一个 Client 退出后自行优雅退出；独立启动的实例保持运行，不因 Client 的连接或退出改变归属。Server 维护受鉴权的客户端租约，退出主动释放，崩溃后租约超时失效，避免依赖“最初启动它的 Client”关闭进程。最后一个租约释放后进入停机流程，取消或保存后台任务、完成文件写入的安全收尾，在有界超时内退出，不以仍有扫描任务为由无限常驻。
-运行中的旧版本 Server 与新版 Client 不兼容时，明确报告版本冲突；managed-local 的升级需协调停机、数据备份/迁移与新版本启动，失败保留恢复入口，不能直接覆盖运行中的可执行文件。独立启动的 Server 由其部署方式管理升级，Client 仅提示，不自动停止或接管。
-桌面歌词独立窗口，置顶/穿透/锁定/缩放属于平台适配；Mac/Linux 支持程度待验证。皮肤限声明式资源、颜色、布局 token，初期不运行任意脚本。
-详见 [启动流程](diagrams/windows-launch.puml)。
+以下是 API 暴露的数据语义，不是数据库表设计。
 
-## 9. 安全和数据可靠性
-所有私有歌单、文件与会话按 userId 授权。浏览器与桌面原生部分使用各自受限会话；Tauri capabilities 和 CSP 只授予需要的命令。
-Server 流代理不是任意 URL 代理；只能访问 Provider 声明来源，校验重定向、DNS 与目标地址；NAS 内网访问按实例显式授权，其他网络入口默认拒绝 SSRF 目标。
-密钥使用 OS key store 或外部提供主密钥，Docker 通过 secret 注入；DB 不保存明文凭据。日志脱敏 URL 参数、token、请求头与私人路径。
-SQLite 迁移前做一致性备份，不能仅复制运行中的主数据库而忽略 WAL；记录 schemaVersion、备份与恢复流程。插件和元数据任务失败不能破坏已发布快照。
+| 标识 / 对象 | 跨端约定 |
+| --- | --- |
+| Recording | 某个录音版本的内部标识；Live、Remix、翻唱分别处理，不以歌名 + 歌手作唯一键 |
+| SourceTrack | 某 Provider 实例下的来源曲目，保留出处与可用性；未匹配到 Recording 也可播放 |
+| SourceAsset | 来源曲目某个音质的具体字节版本；内容改变产生新版本，不能静默替换活动播放资源 |
+| 匹配证据 | 码率属于具体资产；SHA-512 表示完整文件字节摘要；音频指纹辅助发现相似音频候选；三者均不能单独证明跨源时间轴兼容 |
+| PlaylistEntry / provenance | 稳定条目标识及全部来源出处；聚合展示行不作为持久身份 |
+| revision | 歌单、选择或规则的修订；分页固定同一修订，编辑携带预期修订 |
+| MediaObject / selection | 歌词、封面等不可变内容对象与当前选择；返回受鉴权引用、版本、来源和适用范围，不返回 Server 磁盘路径 |
+| PlaybackSession | 用户、设备与播放目标上下文；会话不能代替具体资源版本 |
+| attemptId / representationId | 一次播放尝试及其固定输出表示；源资产、处理配置、输出格式或生成起点改变时返回新标识和新地址 |
 
-## 10. 原型与交付顺序
-[客户端线框](prototypes/client.salt.puml) 展示导航、聚合歌单、来源状态、播放条和来源弹窗。
-[连接与歌词线框](prototypes/settings.salt.puml) 展示部署模式、本地音乐根目录/扫描、Music Provider 与独立 Scraper 配置、手动刮削/选用/导入，以及皮肤与歌词控制。线框使用英文标签，说明使用中文；不是可运行客户端。
+Server 返回的资产信息可包含 codec、container、durationMs、bitrateBps、bitrateMode、fileSizeBytes、fileSha512 及探测状态。未知值为 null；码率单位 bit/s；已校验的完整文件 SHA-512 在协议中表示为 128 个小写十六进制字符。Provider 申报值与 Server 计算值区分展示，未知摘要不阻止播放。文件不同、码率不同或摘要不同不直接等同于不同 Recording；人工关联与禁止关联优先于自动建议。具体探测、摘要、指纹提取及证据管理见 [Server 内部架构](../server/docs/architecture.md)。
 
-M0：两类插件协议与模型评审；验证本地/NAS 扫描和 Range、浏览器/桌面格式、Tauri sidecar 与歌词窗口。
-M1：官方 Local Files Provider、单用户、本地歌单、文件码率探测与后台 SHA-512 精确匹配；交付独立 Scraper 注册/配置与任务流程、官方本地内容提取 Scraper、手动候选预览/选用及歌词/封面文件导入，内容存独立目录；Web 播放与 Server Docker/本地运行。
-M2：接入一个经过可行性验证的在线 Music Provider 与一个独立在线 Scraper，分别验收，不互为上线前置条件；导入与快照、人工关联、聚合与来源选择、自动刮削规则及经能力验证的可选原文件写入。
-M3：桌面打包、Windows 生命周期、歌词与皮肤，再扩展第二在线 Provider。
-M4：第三方插件权限隔离、多用户和远程写回按实际需求推进。
+## 4. API 与事件草案
 
-验收重点：不同录音不误合并；多出处删除正确；无一致远程版本时复核删除；旧同步任务不能覆盖新结果；整首/单出处隐藏在重建后保留；同步中断保留旧快照；Range/seek 正确；来源失败有界回退；凭据不传客户端；多个 Client 启动只产生一个 Server；随 Client 启动的 Server 在最后一个 Client 退出后关闭，独立启动的保持运行；remote 模式无本地启动。
-文件匹配验收：相同文件跨路径可精确匹配且保留出处；不同歌曲即使码率相同也不误关联；同一录音转码或修改标签后不因哈希不同被强制拆分；VBR 与未知码率正确表示；文件在计算中变化不发布有效摘要；Provider 错误哈希不成为已校验证据；无完整哈希的在线来源仍可播放；匹配不跨用户泄露私有文件存在性。
-刮削与写入验收：歌词/封面正文不入数据库；默认刮削前后原音频的 SHA-512 不变；自动刷新保留人工内容；发布中断仍可读取旧文件且不误清理有效文件；备份恢复同时覆盖索引与独立内容；显式启用且具备能力时才写入原音频；写入失败可恢复，成功后新摘要生效且歌曲/歌单关联不丢失；不支持的格式或只读 NAS 不触发强行写入。
-插件与本地来源验收：没有在线 Music Provider 时仍能扫描/播放本地音乐并调用独立 Scraper；两类插件可独立启停且凭据不串用；手动预览不覆盖当前内容，选用后不会被晚完成的自动任务覆盖；本地上传/编辑不依赖第三方插件；批量刮削逐项报告失败；NAS 失挂不清空音乐库；可靠识别的文件移动保留关联，重复文件保留出处；越界路径被拒绝；远程 Client 的本机路径不会被误当成 Server 路径。
-尚未定案：Server 语言、UI 框架、原生音频库、平台 Provider 可行性、桌面各平台歌词能力。当前交付是设计与线框源码，不是实现或渲染验证完成的产品。
-待用户确认：Web 遇到不兼容格式时是否提供可选转码；跨来源续播是否必须确认时间轴兼容；是否加入音频指纹辅助匹配的设计与验证。相关方案经评审与原型验证后更新本文。
+业务路由前缀 `/api/v1`。错误包含 `code/message/requestId/retryAfter`，绝对时间采用 UTC ISO 8601，曲目位置和持续时间使用毫秒，列表使用游标。下面描述共同契约，具体字段和错误码在 Server 的协议定义中定稿。
+
+| 路由 | 共同语义 |
+| --- | --- |
+| GET /health/live、/health/ready | 存活/就绪及必要的 MusicFS 身份、协议版本和 instanceId；就绪不代替授权握手 |
+| GET /providers、/provider-instances | 用户可访问的 Music Provider 实例、能力及账号状态 |
+| GET /scrapers、/scraper-instances | 独立刮削插件、实例、能力及状态 |
+| POST /provider-instances/{id}/scan-jobs | 触发授权本地/NAS 来源的扫描，返回 jobId |
+| GET /search?q=...&cursor=... | 按来源部分成功，候选关联不强制折叠 |
+| GET /recordings/{id}/sources | 可选来源、音质信息与当前用户可用性 |
+| GET /recommendations/playlists?providerInstanceId=...&cursor=... | 按实例及当前账号获取推荐；返回出处、分页、有效期和 stale/失败状态 |
+| GET /playlists、/playlists/{id}/entries | 歌单列表及固定 revision 的条目分页 |
+| POST /playlists/{id}/bindings | 配置子歌单引用与聚合规则 |
+| POST /sync-jobs | 创建同步任务并返回 jobId，界面不把请求成功等同于同步已发布 |
+| GET /source-tracks/{id}/media | 歌词/封面版本、来源、语言、时序适用范围与当前选择 |
+| GET /media/{objectId} | 鉴权后读取文件内容 |
+| POST /metadata-jobs、GET /metadata-jobs/{id} | 创建刮削/预览任务；读取进度、逐目标状态、候选及预览引用 |
+| POST /metadata-jobs/{id}/apply、/{id}/cancel | 按目标修订应用选用结果，或取消未完成工作 |
+| POST /media | 上传/编辑生成新的内容对象，不直接替换当前选择 |
+| PUT /source-tracks/{id}/media-selection | 按预期修订选择内容并记录人工锁定 |
+| POST /metadata-write-jobs | 按既有授权配置、预期资产版本申请写入原文件，返回任务状态 |
+| POST /playback/sessions | 提交 recordingId/sourceTrackId、偏好和客户端能力，返回播放描述 |
+| POST /playback/sessions/{id}/recover | 提交 attemptId、可观察故障和 positionMs 曲目时间，取得恢复描述或明确的用户操作要求 |
+| POST /playback/sessions/{id}/seek | 对 timeRestart 输出提交 attemptId、positionMs，返回新尝试和新输出地址 |
+| GET /playback/sessions/{id}/attempts/{attemptId}/stream | 鉴权交付该次尝试的固定表示；客户端使用返回的 streamUrl，不自行拼接 |
+| GET /events | WebSocket 任务、歌单、可用性与会话事件 |
+
+创建任务、会话及可能重试的播放控制请求支持 `Idempotency-Key`；seek/recover 必须校验请求所属尝试，过期请求不能覆盖较新的播放状态。采用 `If-Match` 的修订检查失败返回 412，其他业务状态冲突使用明确的 409 错误。事件含 eventId、revision、type；重连读取最新快照，事件不是唯一事实来源。Provider 账号无权限、来源暂不可用、客户端不支持和任务失败应分别呈现。
+
+## 5. 播放协商、定位与恢复
+
+Client / Web 上报实际可用的 codec、container、MIME、传输方式、定位能力及请求的处理效果。Server 选择可交付的来源与输出：兼容且无需处理时直接播放或字节代理；需要兼容处理或 DSP 时使用 Server 插件链输出。浏览器和桌面原生播放器分别协商，不预设浏览器格式支持，也不把桌面音频绑定到某个 UI 框架。
+
+| 播放描述字段 | 语义 |
+| --- | --- |
+| attemptId、assetId、representationId | 固定本次输入与输出的版本身份 |
+| deliveryMode、streamUrl、expiresAt | direct / proxy / processed，短期限定权限的地址及有效期 |
+| outputProfile | codec、container、MIME、传输方式、采样率、声道和适用的码率配置 |
+| effectiveProcessing | 实际生效的处理链、参数版本与执行端；同一效果不能在两端重复应用 |
+| seekMode、seekableRange、positionOriginMs | byteRange / timeRestart / none；以毫秒表示可定位的曲目时间范围及输出起点映射 |
+| timeline、resumeDecision | 已验证的资产间时间映射引用/版本与可自动续播、需从头播放或不可用的决定 |
+
+本地/NAS 或需要私密请求头的来源由 Server 交付。直放地址必须允许客户端访问且不泄露账号凭据；短期播放授权仍须限制用户、资源、用途和有效期。原始字节代理只声明实际具备的 Range 能力，上游不支持时不伪造 206。处理后输出不继承原文件的字节偏移、长度或验证器；byteRange 只适用于稳定且可随机访问的输出表示。
+
+timeRestart 定位通过时间请求重新生成输出，客户端加载新的 streamUrl，按 positionOriginMs 和时间映射显示曲目进度；不能把原文件字节偏移应用到转码流。客户端保留最新播放代次，丢弃旧请求返回的描述；处理配置变化也必须协商新表示。同源输出重建在曲目时间到新输出的映射已验证且可定位时恢复，不要求该 SourceTrack 已关联 Recording；资产内容变化则必须重新验证时间关系。
+
+播放失败时客户端报告 attemptId、观察到的错误与曲目时间，Server 决定有限的同源刷新或换源。浏览器不必识别上游 URL 过期的具体 HTTP 原因。恢复同时限制同源刷新次数、不同来源数（最多 3 个）及总时间预算；同次故障的重复请求不能不断重置预算。
+
+跨源自动续播须同时满足：确认同一 Recording；具有绑定两端资产版本且覆盖目标位置的独立时间轴兼容证据；目标输出及处理链支持所需定位。证据需处理前导静音、裁切、编码延迟等差异；同名、相近时长、相同 Recording 或音频指纹相似均不能单独满足条件。满足条件则返回新尝试和新地址，客户端清理旧缓冲并按映射重载，允许短暂中断；条件不满足或定位失败则提示从头播放，用户可取消，不猜测进度。新表示不能续接旧 Range；同源刷新若复用字节状态也须先验证资源未变。
+
+歌词随当前来源与版本重新选择，时序不兼容时不能沿用旧歌词位置；用户配置的歌词偏移单独保留。Client 的本机转场只在桌面输出端执行，具体行为见 [Client 音频设计](../client/docs/audio-processing.md)。详见 [跨端播放时序](diagrams/playback.puml)。
+
+## 6. 歌单与任务的一致性
+
+聚合歌单默认按 binding 顺序和子歌单原顺序合并，已确认同一 Recording 去重，未知来源按 SourceTrack 去重，并保留全部出处。移除一个来源贡献不删除仍有其他出处的条目。界面按固定 revision 分页，使用预期修订编辑；旧任务不得覆盖新发布状态。
+
+远程歌单不提供一致快照版本时，分页完整也不能证明缺失项已删除。Server 先将其标记疑似移除，经后续完整同步或独立查询复核后移除贡献；Client / Web 显示同步中、疑似移除、stale、lastSuccessAt 和失败原因。失败或不完整同步保留上次有效内容，NAS 离线不清空音乐库。
+
+隐藏默认针对整首 Recording 的全部来源，也允许只隐藏某个 binding/原 entryId 对应的出处。隐藏绑定持久身份，不绑定重建的展示行；未匹配条目先按 SourceTrack 保存意图，后续关联/拆分也应保留用户原始目标，无法唯一确定时提示确认。隐藏和聚合编辑只修改本地规则，不自动写回远程平台；循环歌单引用应明确报错。内部快照、代次及恢复实现见 Server 文档。
+
+## 7. 本地连接、退出与升级协作
+
+| 连接模式 | 跨端行为 |
+| --- | --- |
+| managed-local | Client 可启动配套 Server；可连接已经运行的兼容实例，但不能改变其原始启动归属 |
+| external-local / service | 只连接本机独立部署的 Server，不自动启动、提权或接管服务 |
+| remote | 连接指定远程 Server，不启动本机 Server |
+
+连接须验证 MusicFS 实例身份、协议兼容性并完成授权握手，不能只看 HTTP 200；端口冲突及不兼容版本应显示明确状态。多个 Client 并发启动不能产生多个占用同一数据目录的 Server。客户端启动器内部实现见 [Client 内部架构](../client/docs/architecture.md)。
+
+Server 保留实际启动归属并维护经鉴权的 Client 租约。随 Client 启动的实例在最后一个有效租约释放后优雅退出；Client 崩溃由租约超时处理，启动后始终未建立租约的失败启动也应有界回收。独立启动的实例保持运行，不因 Client 连接/退出改变归属。停机收尾须让客户端能够看到状态，并对新的连接/租约作明确接受或拒绝，避免新 Client 误接入即将退出的实例；持久化和写任务收尾细节见 Server 文档。
+
+升级 managed-local Server 需协调所有活动 Client、优雅停机、数据迁移准备与新版就绪；失败保留可恢复入口，不直接覆盖运行中的程序。不兼容的独立 Server 由其部署方式管理升级，Client 仅提示，不能自动停止或接管。详见 [Windows 连接与生命周期](diagrams/windows-launch.puml)。
+
+## 8. 共同权限与验收
+
+用户只看到自己可访问的来源、歌单、内容对象和会话；共享录音元数据不能暴露其他用户的私人文件。客户端及其插件不获得 Provider / Scraper 账号密钥；歌曲引用或本地控制请求也不能跳过 Server 授权。面向浏览器的连接采用明确的来源许可与适当的会话保护，远程访问配置鉴权和安全传输，日志不得泄露带授权的 URL 或请求头。
+
+跨端验收按以下顺序推进；单端技术选型、插件接口与内部验证清单在各仓库维护。
+
+1. 本地/NAS 来源发现、音乐库展示、固定修订歌单和原流播放；未知码率/摘要也能按权限播放。
+2. 独立 Scraper 的预览、人工选用、上传/编辑与歌词/封面读取；默认原文件不变，显式安全写回后来源身份和歌单仍有效。
+3. 至少一个经验证的在线来源与其可选推荐能力；聚合多出处、保守移除、隐藏和凭据失效状态一致。独立在线 Scraper 分别验收，不依赖在线 Provider 同时上线。
+4. Server 处理输出在真实 Web 环境播放和按时间定位，桌面原生能力单独协商；DSP 不重复，跨源无法证明时间轴兼容时提示重播。
+5. 多 Client 启停、崩溃租约回收、独立 Server 保持运行、remote 无本机启动，以及不兼容版本的可恢复升级流程。
+
+[跨端组件图](diagrams/components.puml) 展示交互边界；桌面线框与本机插件细节见 [Client 设计入口](../client/docs/design.md)。当前交付是设计文档和 PlantUML / Salt 源码，尚无可运行实现或已验证的渲染图。

@@ -1,48 +1,75 @@
 @startuml
-title MusicFS - Windows Server Connection
-start
-:Read configured connection mode;
-if (Managed local?) then (yes)
- :Check health and authenticated identity;
- if (Ready and compatible?) then (yes)
-  :Connect;
- else (no)
-  :Acquire per-user startup lock;
-  :Recheck health / process / port;
-  if (Known server starting?) then (yes)
-   :Wait with bounded backoff;
-  else (no)
-   if (Port occupied or identity mismatch?) then (yes)
-    :Show conflict and configuration;
-    stop
-   else (no)
-     :Launch packaged sidecar with allowlisted args;\nRecord client-managed origin on Server;
-    :Wait with bounded backoff;
-   endif
-  endif
-  if (Ready within deadline?) then (yes)
-   :Authenticate and connect;
-  else (no)
-   :Show logs and retry action;
-   stop
-  endif
- endif
-else (no)
- :Connect to configured remote or external local server;
- if (Connection successful?) then (yes)
-  :Authenticate and connect;
- else (no)
-  :Show connection or service status;
-  stop
- endif
-endif
-:Register authenticated client lease;\nKeep the Server's original launch ownership;
-:Open client;
-:On exit, release client lease;\nExpire lost leases after client crashes;
-if (Client-managed Server and last lease released?) then (yes)
- :Server checkpoints or cancels background work;\nSafely finishes pending file writes and exits;
-else (no)
- :Server remains running;
-endif
-stop
+title MusicFS - Client / Server 连接与生命周期协作
+participant "Client（任一实例）" as Client
+participant "Server 实例" as Server
+
+Client -> Client : 读取连接模式
+alt managed-local
+  Client -> Server : 发现本地实例 / 查询就绪状态
+  alt 确认没有实例
+    Client -> Server : 通过受控启动器请求启动
+    Server -> Server : 记录 client-managed 原始归属\n设置首次租约建立期限
+  else 已有实例
+    Server --> Client : 实例标识 / 当前状态 / 原始启动归属
+  end
+else remote / external-local
+  Client -> Server : 连接配置的 Server 地址
+end
+
+loop 尚未获得租约、未超过截止时间且无不可重试错误
+  Client -> Server : 等待 ready / 验证身份 / 协商协议版本
+  alt 身份或协议不兼容
+    Server --> Client : 身份或兼容性错误
+    Client -> Client : 停止自动连接并提示处理
+  else ready 且身份、协议均兼容
+    Client -> Server : 申请经过认证的客户端租约
+    alt 实例已进入 draining
+      Server --> Client : 拒绝新租约；要求重新发现
+      Client -> Client : 有界退避后重新发现实例
+      note right of Client
+        managed-local 仅在确认旧实例退出且无实例时
+        才能请求受控启动；不强行接管独立 Server。
+      end note
+    else 实例接受新租约
+      Server --> Client : 租约标识 / 续期要求 / 实例标识
+      note right of Server
+        接入 Client 不改变 Server 原始启动归属。
+        租约必须绑定当前实例，不能移用于替代实例。
+      end note
+    end
+  else 尚未 ready 或暂时不可达
+    Client -> Client : 有界等待 / 重新发现
+  end
+end
+
+alt 已建立有效租约
+  Client -> Client : 打开已连接界面
+  loop Client 保持连接
+    Client -> Server : 租约续期
+    Server --> Client : 当前租约状态
+  end
+  alt Client 正常退出
+    Client -> Server : 释放自己的租约
+  else Client 崩溃或失联
+    Server -> Server : 续期截止后使该租约过期
+  end
+  alt client-managed 且最后一个有效租约结束
+    Server -> Server : 原子进入 draining，拒绝后续新租约
+    Server -> Server : 完成有界的优雅收尾
+    Server -> Server : 优雅退出
+  else 仍有其他有效租约，或原始归属为 external
+    Server -> Server : 保持运行
+  end
+else 超时或身份 / 协议验证失败
+  Client -> Client : 展示失败原因及重试入口
+end
+
+opt 新启动的 client-managed 实例在期限内从未建立租约
+  Server -> Server : 原子进入 draining，拒绝新租约
+  Server -> Server : 安全回收启动资源并退出
+  note right of Server
+    首次租约超时回收只适用于 client-managed 实例。
+    external 实例不因无客户端或连接失败而退出。
+  end note
+end
 @enduml

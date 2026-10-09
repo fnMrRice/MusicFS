@@ -1,33 +1,65 @@
 @startuml
-title MusicFS - Playback and Fallback
-actor User
-participant Client
-participant "Server / Resolver" as Server
-participant Provider
-participant "Stream Gateway" as Stream
-User -> Client : Play recording
-Client -> Server : Create session + capabilities
-Server -> Provider : resolveStream(account, source)
-Provider --> Server : Resource + expiry + restrictions
-alt Safe direct playback
- Server --> Client : Scoped playback descriptor
- Client -> Provider : Pull accessible stream
-else Proxy required
- Server --> Client : Session stream URL
- Client -> Stream : GET + Range + session token
- Stream -> Provider : Pull authorized bytes
- Provider --> Stream : Bytes / range metadata
- Stream --> Client : 200 / 206 audio
+title MusicFS - 跨端播放、定位与恢复协议
+actor "用户" as User
+participant "Native Client / Web" as Client
+participant "Server" as Server
+participant "授权音频来源（外部边界）" as Source
+
+User -> Client : 播放录音
+Client -> Server : POST /api/v1/playback/sessions\nrecordingId / sourceTrackId + capabilities + preferences
+Server -> Server : 按能力选择资源，必要时处理音频
+Server --> Client : sessionId / attemptId / stream URL\n输出描述符、资源版本、时间轴与 seek 能力
+
+alt 描述符允许直接播放
+  Client -> Source : 请求可访问且兼容的授权流
+  Source --> Client : 音频
+else Server 提供原字节流
+  Client -> Server : GET stream URL + 会话授权\n仅按描述符声明的能力发送 Range
+  Server --> Client : 200 / 206 音频 + 资源版本
+else Server 提供处理后的流
+  Client -> Server : GET stream URL + 会话授权
+  Server --> Client : 符合协商输出格式的音频
+  note over Client, Server
+    处理后的流不默认支持任意字节 Range。
+  end note
 end
-alt URL expired
- Client -> Server : Refresh session
- Server -> Provider : Resolve same source again
- Server --> Client : Refreshed descriptor
-else Source playback failed
- Client -> Server : Fallback + failure + position
- Server -> Server : Exclude attempted sources; enforce limit
- Server -> Provider : Resolve eligible alternative
- Server --> Client : Alternative or classified failure
- Client -> Client : Resume only when version and seek allow
+
+opt 对处理流按时间定位且描述符声明支持
+  Client -> Server : POST /api/v1/playback/sessions/{id}/seek\npositionMs + attemptId
+  Server --> Client : new attemptId / new URL / output generation\n实际起点与时间轴映射
+  Client -> Server : 重新加载 new URL
+  Server --> Client : 从协商起点开始的音频
+end
+
+opt 链接过期或播放失败
+  Client -> Server : POST /api/v1/playback/sessions/{id}/recover\nfailure + positionMs + attemptId
+  Server -> Server : 统一限制同源刷新与跨源恢复次数
+  alt 恢复预算耗尽
+    Server --> Client : 分类错误；停止自动重试
+  else 可继续恢复
+    Server -> Server : 刷新当前资源或选择替代来源
+    alt 同来源且确认资源与输出版本未变化
+      Server --> Client : 保持原 attemptId，刷新授权地址\n仅在版本验证通过后保留有效的原偏移
+    else 来源或资源 / 输出版本发生变化
+      Server -> Server : 验证目标位置映射与新输出的定位能力
+      note right of Server
+        同源输出重建：验证原曲目时间到新输出的映射，
+        无需曲目已经关联 Recording。
+        跨来源：还须同 Recording，且有独立的、
+        绑定两端资产版本的时间轴兼容证据。
+      end note
+      alt resumeDecision = resume，时间映射有效且支持 seek
+        Server --> Client : new attemptId / new URL\nresume + 已确认的恢复位置
+        Client -> Client : 重新加载并恢复到确认位置
+      else 无法确认兼容性
+        Server --> Client : new attemptId / new URL\npromptRestart
+        Client --> User : 提示是否从头播放
+      end
+      note over Client, Server
+        不拼接不同资源的字节；SHA-512 / 音频指纹匹配
+        不能单独替代跨来源的时间轴兼容证据。
+      end note
+    end
+  end
 end
 @enduml
