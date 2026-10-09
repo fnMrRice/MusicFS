@@ -49,6 +49,8 @@ Server 汇集本地音乐文件、已挂载 NAS 与在线平台来源，提供�
 
 Server 返回的资产信息可包含 codec、container、durationMs、bitrateBps、bitrateMode、fileSizeBytes、fileSha512 及探测状态。未知值为 null；码率单位 bit/s；已校验的完整文件 SHA-512 在协议中表示为 128 个小写十六进制字符。Provider 申报值与 Server 计算值区分展示，未知摘要不阻止播放。文件不同、码率不同或摘要不同不直接等同于不同 Recording；人工关联与禁止关联优先于自动建议。具体探测、摘要、指纹提取及证据管理见 [Server 内部架构](../server/docs/architecture.md)。
 
+NCM 的 SourceAsset 仍标识原始加密容器，文件大小、摘要与版本属于原文件；解密出的 MP3/FLAC 是独立播放表示，不覆盖源资产。解密表示使用自己的长度、验证器与 representationId；客户端的 Range 面向该表示，不能沿用加密文件的字节偏移。
+
 ## 4. API 与事件草案
 
 业务路由前缀 `/api/v1`。错误包含 `code/message/requestId/retryAfter`，绝对时间采用 UTC ISO 8601，曲目位置和持续时间使用毫秒，列表使用游标。下面描述共同契约，具体字段和错误码在 Server 的协议定义中定稿。
@@ -89,6 +91,8 @@ Server 返回的资产信息可包含 codec、container、durationMs、bitrateBp
 ## 5. 播放协商、定位与恢复
 
 Client / Web 上报实际可用的 codec、container、MIME、传输方式、定位能力及请求的处理效果。Server 选择可交付的来源与输出：兼容且无需处理时直接播放或字节代理；需要兼容处理或 DSP 时使用 Server 插件链输出。浏览器和桌面原生播放器分别协商，不预设浏览器格式支持，也不把桌面音频绑定到某个 UI 框架。
+
+NCM 由 Server 的独立 `audio.decrypt` 插件解除外层容器，保留内部编码字节；纯解密交付为 `proxy`，需要兼容转码或用户请求 DSP 时再进入处理链并返回 `processed`。`effectiveProcessing` 的 `ncmDecrypt` 项标明服务端解密，不能据此宣称应用了增益等 DSP。插件控制面使用版本化 JSON-RPC/stdio，只传任务与资源描述；音频正文走独立、受任务授权约束的私有二进制通道，由 Server 管理取消与回收。Client / Web 只访问 Server 返回的受鉴权播放地址，不直接连接插件数据通道。配置、协议和已验证范围见 [Server NCM 插件](../server/docs/ncm.md)，不由本节扩大其他格式或平台的实现范围。
 
 | 播放描述字段 | 语义 |
 | --- | --- |
