@@ -69,7 +69,7 @@ Linux 包内程序没有 `.exe` 后缀，启动入口为 `start.sh`。新版只�
 
 插件启动时自动发现，配置齐全且未显式禁用的实例自动启动；缺少音乐目录或工具路径的实例显示 `pending_configuration`，不阻止 Web 打开。已有 `enabled: false` 继续生效。
 
-本地音乐默认没有选定的导入目录，也不会在安装目录创建示例 music 文件夹。允许访问的范围默认采用运行用户的 Music 目录与 Windows 首次探测结果；YAML 的 `permissions.readDirectories` 可显式覆盖该范围，Web 管理页面只读展示。通过「添加本地目录」弹窗选择授权根或子目录，保存到数据库后再显式扫描导入。完整流程见[启动说明](packaging-start.md)，该文件会复制为包根目录的 `START.md`；接口与迁移规则见 [Server 插件配置说明](../server/docs/plugin-configuration.md)。
+本地音乐默认没有选定的导入目录，也不会在安装目录创建示例 music 文件夹。允许访问的范围默认采用运行用户的 Music 目录与 Windows 首次探测结果；YAML 的 `permissions.readDirectories` 可显式覆盖该范围，Web 管理页面只读展示。点击「本地音乐」标题右侧的「管理目录」，在弹窗目录树中展开并勾选授权根或子目录；下方配置递归查找，高级选项提供深度限制、隐藏项和 .nomedia 处理；递归默认深度 0 不限，默认跳过隐藏内容并遵循 .nomedia，保存到数据库后再显式扫描导入。完整流程见[启动说明](packaging-start.md)，该文件会复制为包根目录的 `START.md`；接口与迁移规则见 [Server 插件配置说明](../server/docs/plugin-configuration.md)。
 
 ## 验证记录
 
