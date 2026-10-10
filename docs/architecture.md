@@ -15,7 +15,7 @@
 | [Client 音频与插件](../client/docs/audio-processing.md) | WMF / FFmpeg 适配、主题、DSP、切歌淡化及外部控制 API 插件 |
 | [Web 设计](../web/docs/design.md) | 浏览器 UI、能力探测与浏览器播放适配 |
 
-Local Files 的实际音乐目录、扫描默认值与监听设置由管理员接口维护，持久化到 Server 托管的插件配置数据库。未显式配置目录权限时，默认允许当前 Server 运行用户的 Music 目录，并兼容旧 YAML musicRoots 的授权；Windows 首次启用启动时还检查各逻辑磁盘根目录下的固定下载目录，将存在且可读的目录加入默认允许范围，结果持久化后不重复探测。发现目录只授予访问权限，不自动选择音乐目录或扫描入库；用户导入时再通过管理接口选择。显式 YAML `permissions.readDirectories` 完整覆盖默认授权，空数组表示禁止访问。客户端沿用实例配置 API 和不透明修订，不直接访问插件数据库；目录及参数字段不变。当前 Web 尚无目录编辑表单，具体路径和边界见 [Server 插件配置](../server/docs/plugin-configuration.md)。
+Local Files 的实际音乐目录、扫描默认值与监听设置由管理员接口维护，持久化到 Server 托管的插件配置数据库。未显式配置目录权限时，默认允许当前 Server 运行用户的 Music 目录，并兼容旧 YAML musicRoots 的授权；Windows 首次启用启动时还检查各逻辑磁盘根目录下的固定下载目录，将存在且可读的目录加入默认允许范围，结果持久化后不重复探测。发现目录只授予访问权限，不自动选择音乐目录或扫描入库。显式 YAML `permissions.readDirectories` 完整覆盖默认授权，空数组表示禁止访问。Web 管理员可在设置页通过目录浏览接口，从授权根中选择根目录或子目录并保存，也可移除或清空选择；待配置实例仍可管理目录，保存不自动扫描。只有管理员目录浏览接口返回这些路径，普通来源与配置展示继续脱敏；Server 从授权根句柄相对打开目录，拒绝越界及链接逃逸。客户端沿用实例配置 API 和不透明修订，不直接访问插件数据库，具体路径和边界见 [Server 插件配置](../server/docs/plugin-configuration.md)。
 
 Server 在自身 `docs/contracts` 维护 OpenAPI、事件 Schema 和带版本的协议 SDK；各运行端维护自己的插件 SDK。协议不依赖实现语言，插件二进制不承诺跨运行端通用。桌面 UI 框架、渲染方式及与 Web 的复用方式待验证后确定，不以 Tauri/WebView 为前提。两个界面可以共享协议模型、资源及适用组件，复用须记录兼容版本。
 
