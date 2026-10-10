@@ -15,6 +15,8 @@
 | [Client 音频与插件](../client/docs/audio-processing.md) | WMF / FFmpeg 适配、主题、DSP、切歌淡化及外部控制 API 插件 |
 | [Web 设计](../web/docs/design.md) | 浏览器 UI、能力探测与浏览器播放适配 |
 
+Local Files 的实际音乐目录、扫描默认值与监听设置由管理员接口维护，持久化到 Server 托管的插件配置数据库；YAML 限定插件实例可访问的目录范围。客户端沿用实例配置 API 和不透明修订，不直接访问插件数据库。当前 Web 尚无目录编辑表单，详见 [Server 插件配置](../server/docs/plugin-configuration.md)。
+
 Server 在自身 `docs/contracts` 维护 OpenAPI、事件 Schema 和带版本的协议 SDK；各运行端维护自己的插件 SDK。协议不依赖实现语言，插件二进制不承诺跨运行端通用。桌面 UI 框架、渲染方式及与 Web 的复用方式待验证后确定，不以 Tauri/WebView 为前提。两个界面可以共享协议模型、资源及适用组件，复用须记录兼容版本。
 
 内部文档使用相对链接，跨仓库链接依赖根目录下同时检出 `server/`、`client/`、`web/` 的工作区布局。
