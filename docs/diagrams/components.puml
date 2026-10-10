@@ -6,7 +6,7 @@ skinparam componentStyle rectangle
 component "MusicFS-client\n原生客户端（实现待定）" as Client
 component "MusicFS-web\n浏览器客户端" as Web
 component "MusicFS-server" as Server
-cloud "授权音频与元数据来源\n本地文件 / 挂载 NAS / 在线来源" as Sources
+cloud "授权音频与元数据来源\n本地文件 / 挂载 NAS / 在线来源\n规划新增：NFS / SMB 直连、Bilibili" as Sources
 
 Client --> Server : HTTP API / 认证 / 能力协商\n媒体库 / 歌单 / 播放会话
 Web --> Server : HTTP API / 认证 / 能力协商\n媒体库 / 歌单 / 播放会话
@@ -25,5 +25,8 @@ end note
 note bottom of Sources
   外部来源只是协作边界，不代表插件实现方式。
   各端内部模块、插件与存储设计见各自仓库。
+  NFS / SMB 与 Bilibili 均为待实现增量。
+  B 站匿名优先，收藏夹为主、音频歌单为补充。
+  NAS 与 B 站音频通过 Server 交付，客户端不直连。
 end note
 @enduml

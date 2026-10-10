@@ -10,6 +10,8 @@ Server现使用[版本化YAML配置](server/docs/configuration.md)，配置读�
 
 ## 实现计划
 
+新增 [NFS/SMB NAS 插件设计](server/docs/nas-providers.md)与 [Bilibili 音频插件设计](server/docs/bilibili-provider.md)：B 站匿名访问优先，以收藏夹为主要歌单来源，并补充音频区独立歌单。当前仅完成设计与[增量实施计划](server/docs/implementation/nas-bilibili.md)，尚未实现；开源候选及采用边界见[参考记录](server/docs/provider-references.md)。
+
 - [联合实施总览](docs/implementation.md)：P0—P8 顺序、共同 API 与验收场景。
 - [Server 分阶段实施](server/docs/implementation.md)：工程基础、音乐库、原流与处理后播放、匹配、刮削、在线来源及交付。
 - [Server 插件实施](server/docs/implementation/plugins.md)：Local Files、音频处理、独立 Scraper 和平台 Provider。
