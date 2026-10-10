@@ -2,6 +2,7 @@ param(
     [ValidateSet('windows', 'linux')][string]$TargetOS = 'windows',
     [string]$Output = '',
     [switch]$AllowDirty,
+    [switch]$SkipInstall,
     [switch]$SkipWebBuild
 )
 $ErrorActionPreference = 'Stop'
@@ -45,7 +46,13 @@ try {
     }
     if (-not $SkipWebBuild) {
         Set-Location (Join-Path $root 'web')
-        Invoke-Checked 'npm' @('ci', '--no-audit', '--no-fund')
+        if ($SkipInstall) {
+            if (-not (Test-Path -LiteralPath 'node_modules' -PathType Container)) {
+                throw 'Web dependencies are missing. Run again without -SkipInstall.'
+            }
+        } else {
+            Invoke-Checked 'npm' @('ci', '--no-audit', '--no-fund')
+        }
         Invoke-Checked 'npm' @('run', 'build')
     }
     $webRoot = Join-Path $root 'web/dist'
@@ -56,12 +63,24 @@ try {
     $releaseArgs = @('run', '-mod=readonly', './scripts/release', '--os', $TargetOS,
         '--output', $Output, '--web-root', $webRoot)
     if ($AllowDirty) { $releaseArgs += '--allow-dirty' }
-    Invoke-Checked 'go' $releaseArgs
+    # The release builder runs on the host and selects its own target.
+    $savedEnvironment = @{}
+    foreach ($name in @('GOOS', 'GOARCH', 'CGO_ENABLED')) {
+        $savedEnvironment[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
+        [Environment]::SetEnvironmentVariable($name, $null, 'Process')
+    }
+    try {
+        Invoke-Checked 'go' $releaseArgs
+    } finally {
+        foreach ($name in $savedEnvironment.Keys) {
+            [Environment]::SetEnvironmentVariable($name, $savedEnvironment[$name], 'Process')
+        }
+    }
 
     # Keep the bundle incomplete until launchers and checksums are finalized.
     $marker = Join-Path $Output '.incomplete'
     [IO.File]::WriteAllText($marker, "Packaging has not completed.`n")
-    $launchers = if ($TargetOS -eq 'windows') { @('start.bat', 'start.ps1') } else { @('start.sh') }
+    $launchers = if ($TargetOS -eq 'windows') { @('start.bat') } else { @('start.sh') }
     foreach ($name in $launchers) {
         Copy-Item -LiteralPath (Join-Path $root "scripts/launch/$name") -Destination (Join-Path $Output $name)
     }

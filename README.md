@@ -6,11 +6,11 @@
 
 NCM 插件已接入本地扫描与播放，支持提取容器内的 MP3/FLAC；配置、限制和[手工验证步骤](server/docs/ncm.md#5-手工验证)集中在 [NCM 插件说明](server/docs/ncm.md)。独立 Worker、Server 回归和三项 Edge 联调已通过，证据见 [Web NCM 验证](web/docs/ncm-validation.md)；真实下载的 NCM 变体尚未验收。
 
-Server现使用[版本化YAML配置](server/docs/configuration.md)，配置读写服务支持修订检查、原子保存及恢复；旧JSON配置不兼容。保存配置与运行时应用分离，动态插件启停仍待后续实现；本轮证据见[配置验收](server/docs/validation/configuration.md)。
+Server 使用[版本化 YAML 配置](server/docs/configuration.md)，支持插件动态启停、能力变更通知和配置修订检查；Local Files 目录配置通过管理接口持久化，YAML 限定访问权限。内置插件统一分发并按角色独立启动，缺少必要配置时显示待配置；见[插件配置](server/docs/plugin-configuration.md)与[插件分发验证](server/docs/validation/plugin-bundle.md)。
 
 ## 本地打包与启动
 
-在主仓库运行 `./scripts/package.ps1` 生成 Windows 64 位安装包，或运行 `sh scripts/package.sh` 生成 Linux 64 位安装包，默认输出到根目录 `deploy/`。组合包包含 Server、插件和 Web；解压后 Windows 双击 `start.bat`，Linux 运行 `sh ./start.sh`。构建环境、参数和配置步骤见[打包说明](docs/packaging.md)与[启动说明](docs/packaging-start.md)。
+在主仓库运行 `./scripts/package.ps1` 生成 Windows 64 位安装包，或运行 `sh scripts/package.sh` 生成 Linux 64 位安装包，默认输出到根目录 `deploy/`。组合包包含 Server、统一插件程序和 Web；解压后 Windows 双击 `start.bat`，Linux 运行 `sh ./start.sh`。已有锁定 Web 依赖可加 `-SkipInstall`；构建环境、参数和配置步骤见[打包说明](docs/packaging.md)与[启动说明](docs/packaging-start.md)。
 
 ## 实现计划
 

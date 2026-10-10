@@ -1,1 +1,3 @@
 /deploy/
+# Legacy local package output.
+/packages/

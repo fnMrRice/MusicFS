@@ -1,6 +1,6 @@
 # MusicFS 分阶段实施总览
 
-平台账号增量已接入 Server / Worker / Web，采用客户端请求优先策略；网易云、QQ 二维码创建实测通过，完整用户授权与 Apple 实号登录待验收，详见[平台登录说明](../server/docs/platform-login.md)。下文原阶段交付状态不包含此待验收增量。
+平台账号增量已接入 Server / Worker / Web，三个在线源统一要求平台登录，网易云查询迁移至带会话的 EAPI、QQ 搜索迁移至桌面 RPC；网易云、QQ 二维码创建实测通过，完整用户授权与 Apple 实号登录待验收，详见[平台登录说明](../server/docs/platform-login.md)。下文原阶段交付状态不包含此待验收增量。
 
 状态：2026-10-10，本地文件/NCM与最简Web播放已有实现，Server已继续完成P5识别、P6媒体与受限写回，以及P7匿名资料、推荐、远程/个人歌单和人工时间对齐恢复。P8备份、安装制品与生命周期按步骤验收；每步提交、通过项和剩余环境验证见 [Server 实施记录](../server/docs/validation/progress.md)与 [Web 兼容记录](../web/docs/compatibility.md)。桌面Client、动态插件启停、平台账号和完整在线音频仍不属于已交付能力。
 

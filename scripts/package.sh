@@ -6,10 +6,11 @@ target=linux
 output=
 allow_dirty=false
 skip_web=false
+skip_install=false
 
 fail() { printf 'Error: %s\n' "$*" >&2; exit 1; }
 usage() {
-    printf '%s\n' 'Usage: sh scripts/package.sh [--os windows|linux] [--output NEW_DIRECTORY] [--allow-dirty] [--skip-web-build]'
+    printf '%s\n' 'Usage: sh scripts/package.sh [--os windows|linux] [--output NEW_DIRECTORY] [--allow-dirty] [--skip-install] [--skip-web-build]'
 }
 
 while [ "$#" -gt 0 ]; do
@@ -19,6 +20,7 @@ while [ "$#" -gt 0 ]; do
             if [ "$1" = --os ]; then target=$2; else output=$2; fi
             shift 2 ;;
         --allow-dirty) allow_dirty=true; shift ;;
+        --skip-install) skip_install=true; shift ;;
         --skip-web-build) skip_web=true; shift ;;
         -h|--help) usage; exit 0 ;;
         *) usage >&2; fail "Unknown argument: $1" ;;
@@ -35,7 +37,7 @@ fi
 if [ "$target" = windows ]; then
     command -v zip >/dev/null 2>&1 || fail 'Required command not found: zip'
     extension=zip
-    for launcher in start.bat start.ps1; do
+    for launcher in start.bat; do
         [ -f "$root/scripts/launch/$launcher" ] || fail "Missing launcher: $launcher"
     done
 else
@@ -74,17 +76,25 @@ archive="$output.$extension"
 
 if [ "$skip_web" = false ]; then
     printf '%s\n' 'Installing Web dependencies and building Web assets...'
-    (cd "$root/web" && npm ci --no-audit --no-fund && npm run build)
+    (
+        cd "$root/web"
+        if [ "$skip_install" = true ]; then
+            [ -d node_modules ] || fail 'Web dependencies are missing; run again without --skip-install.'
+        else
+            npm ci --no-audit --no-fund
+        fi
+        npm run build
+    )
 fi
 [ -f "$root/web/dist/index.html" ] || fail 'Web build requires web/dist/index.html.'
 
 printf 'Building MusicFS for %s amd64...\n' "$target"
 set -- --os "$target" --arch amd64 --output "$output" --web-root "$root/web/dist"
 if [ "$allow_dirty" = true ]; then set -- "$@" --allow-dirty; fi
-sh "$root/server/scripts/release.sh" "$@"
+(unset GOOS GOARCH CGO_ENABLED; sh "$root/server/scripts/release.sh" "$@")
 printf '%s\n' 'Package assembly has not completed.' > "$output/.incomplete"
 if [ "$target" = windows ]; then
-    cp "$root/scripts/launch/start.bat" "$root/scripts/launch/start.ps1" "$output/"
+    cp "$root/scripts/launch/start.bat" "$output/"
 else
     cp "$root/scripts/launch/start.sh" "$output/start.sh"
     chmod +x "$output/start.sh"

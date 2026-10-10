@@ -15,11 +15,15 @@
 | [Client 音频与插件](../client/docs/audio-processing.md) | WMF / FFmpeg 适配、主题、DSP、切歌淡化及外部控制 API 插件 |
 | [Web 设计](../web/docs/design.md) | 浏览器 UI、能力探测与浏览器播放适配 |
 
+Local Files 的实际音乐目录、扫描默认值与监听设置由管理员接口维护，持久化到 Server 托管的插件配置数据库；YAML 限定插件实例可访问的目录范围。客户端沿用实例配置 API 和不透明修订，不直接访问插件数据库。当前 Web 尚无目录编辑表单，详见 [Server 插件配置](../server/docs/plugin-configuration.md)。
+
 Server 在自身 `docs/contracts` 维护 OpenAPI、事件 Schema 和带版本的协议 SDK；各运行端维护自己的插件 SDK。协议不依赖实现语言，插件二进制不承诺跨运行端通用。桌面 UI 框架、渲染方式及与 Web 的复用方式待验证后确定，不以 Tauri/WebView 为前提。两个界面可以共享协议模型、资源及适用组件，复用须记录兼容版本。
 
 内部文档使用相对链接，跨仓库链接依赖根目录下递归检出 `server/`、`client/`、`web/` 三个 Git 子模块的工作区布局；主仓库记录各子模块的提交版本。
 
 当前 Server / 插件 / 最小 Web 的交付顺序与联合验收见[分阶段实施总览](implementation.md)。本文保持长期契约，具体模块和实现步骤由对应仓库维护。
+
+Server 内置插件的分发采用统一程序文件、按角色独立启动进程；自动发现、显式禁用和待配置状态见 [Server 配置](../server/docs/configuration.md#内置插件程序与自动发现)。插件协议不变；管理接口增加 `pending_configuration` 状态，界面不得将其显示为已就绪。
 
 ## 2. 跨端职责与可见能力
 
@@ -34,6 +38,8 @@ Server 汇集本地音乐文件、已挂载 NAS 与在线平台来源，提供�
 ### 2.1 在线平台账号登录
 
 登录与业务接口优先参考开源项目中已验证的模拟客户端方式，采用相应客户端的请求路径、参数、加密/签名、设备标识及会话机制，不以仅修改 User-Agent 代替客户端适配。按平台和接口逐项验证；客户端方式不可用时可采用已验证的 Web / 官方 SDK 方式，并记录原因、参考版本和限制。具体接入与证据见 [Server 平台账号登录](../server/docs/platform-login.md)。
+
+网易云、QQ 音乐、Apple Music 都是必须登录的在线源。除实例发现、能力说明和登录/退出控制面外，搜索、资料、推荐、歌单预览、导入、同步及播放请求都要求对应实例具有已校验的平台账号；未登录、过期或重启后尚未校验时拒绝业务访问，不回退到匿名接口或旧缓存。请求使用本实例账号会话，缓存与分页游标绑定账号及登录代次。
 
 平台登录是用户登录网易云、QQ 音乐或 Apple Music 自己的账号，与访问 MusicFS Server 的 `/auth/session` 是两套独立状态。登录 MusicFS 不表示已登录任何音乐平台；三个平台分别登录、重新授权和退出，互不代替。Local Files 等无需账号的 Provider 不受此要求影响。
 
@@ -110,10 +116,10 @@ NCM 的 SourceAsset 仍标识原始加密容器，文件大小、摘要与版本
 | POST /playback/sessions/{id}/recover-source | 对当前attempt申请指定目标来源，证据适用时continue，否则promptRestart；不按指纹相似度自动推导偏移 |
 | POST /playback/sessions/{id}/seek | 对 timeRestart 输出提交 attemptId、positionMs，返回新尝试和新输出地址 |
 | GET /playback/sessions/{id}/attempts/{attemptId}/stream | 鉴权交付该次尝试的固定表示；客户端使用返回的 streamUrl，不自行拼接 |
-| GET /events | WebSocket 任务、歌单、可用性与会话事件 |
+| GET /events | 已实现 SSE 能力变更通知；其他任务、歌单和会话事件仍为后续范围 |
 | GET /lifecycle、POST /lifecycle/leases及续租/释放子路径 | 本地鉴权的启动归属与多客户端租约；仅client-managed模式自动收尾，不代表桌面启动器已经实现 |
 
-创建任务、会话及可能重试的播放控制请求支持 `Idempotency-Key`；seek/recover 必须校验请求所属尝试，过期请求不能覆盖较新的播放状态。采用 `If-Match` 的修订检查失败返回 412，其他业务状态冲突使用明确的 409 错误。事件含 eventId、revision、type；重连读取最新快照，事件不是唯一事实来源。Provider 账号无权限、来源暂不可用、客户端不支持和任务失败应分别呈现。
+创建任务、会话及可能重试的播放控制请求支持 `Idempotency-Key`；seek/recover 必须校验请求所属尝试，过期请求不能覆盖较新的播放状态。采用 `If-Match` 的修订检查失败返回 412，其他业务状态冲突使用明确的 409 错误。当前 SSE 的事件类型为 `capabilities.changed`，数据含 `revision/sequence`；首连与重连通知客户端重新读取授权来源与能力。事件不是唯一事实来源，也不包含管理员配置或凭据。其他事件的字段在 Server 交付时定义。Provider 账号无权限、来源暂不可用、客户端不支持和任务失败应分别呈现。
 
 最小 Web 首次登录用显式 Bearer 凭据和允许的 Origin 校验，取得 HttpOnly 会话 Cookie 与 CSRF token；登录后的状态修改（包括退出）校验会话 CSRF 和 Origin。原生 audio 通过同源 Cookie 访问授权流，无需把凭据放入 URL。详细边界见[联合实施契约](implementation.md#33-同源连接与会话)。
 
