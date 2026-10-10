@@ -2,3 +2,6 @@
 /client/
 /server/
 /web/
+
+# Local combined Server and Web packages.
+/packages/
