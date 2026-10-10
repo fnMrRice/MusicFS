@@ -25,6 +25,8 @@ Server 在自身 `docs/contracts` 维护 OpenAPI、事件 Schema 和带版本的
 
 Server 内置插件的分发采用统一程序文件、按角色独立启动进程；自动发现、显式禁用和待配置状态见 [Server 配置](../server/docs/configuration.md#内置插件程序与自动发现)。插件协议不变；管理接口增加 `pending_configuration` 状态，界面不得将其显示为已就绪。
 
+Server 插件和实例停用只保存配置，重启 Server 后生效；当前 Worker、任务、播放及新工作准入保持。启用和实例设置仍可动态应用。管理快照及操作的 `restartRequired` 与实例 `RESTART_REQUIRED` 原因区分保存意图和运行状态；待重启时 `effectiveEnabled` 按当前运行开关计算，`appliedRevision` 不推进至新修订。旧 `mode=drain/force` 仅兼容接受，不再排空或取消。客户端不得凭保存开关或操作 succeeded 宣称已经停用，见[Server 插件管理](../server/docs/implementation/plugin-management.md)。
+
 ## 2. 跨端职责与可见能力
 
 Server 汇集本地音乐文件、已挂载 NAS 与在线平台来源，提供统一音乐库、歌单、来源选择和音频交付；Client / Web 负责展示、用户操作和播放。Local Files Provider 属于首版范围：这里的“本地”指 Server 可访问的文件系统，远程 Client 的本机路径不能直接交给远程 Server 读取。客户端上传或共享整首音频若需要，另行设计。
