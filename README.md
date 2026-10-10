@@ -20,6 +20,9 @@ Server现使用[版本化YAML配置](server/docs/configuration.md)，配置读�
 ## 设计文档
 
 - [跨端架构设计](docs/architecture.md)
+- [前端 UI 设计草案](docs/ui-design.md)：共享布局、导航与用户菜单，待确认。
+- [曲目列表页设计](docs/ui-tracks.md)：分类、筛选、排序、复选框与动态加载。
+- [搜索页设计](docs/ui-search.md)：来源选择、曲目/专辑/歌手/歌单结果与动态加载。
 - [跨端组件图](docs/diagrams/components.puml)
 - [播放与来源回退](docs/diagrams/playback.puml)
 - [Windows 启动与退出流程](docs/diagrams/windows-launch.puml)
@@ -29,7 +32,9 @@ Server现使用[版本化YAML配置](server/docs/configuration.md)，配置读�
 - [客户端线框](client/docs/prototypes/client.salt.puml)
 - [连接、插件与歌词设置线框](client/docs/prototypes/settings.salt.puml)
 
-图示使用 PlantUML，界面线框使用 PlantUML Salt；仓库保存可编辑源码，当前未提供已验证的渲染图。
+图示使用 PlantUML，界面线框使用 PlantUML Salt；仓库保存可编辑源码。前端 UI 布局草案附有与源码一致的渲染图，其余图示以源码为准。
+
+PNG、JPG、JPEG、WebP、GIF 图片使用 Git LFS 保存；克隆后需安装 Git LFS 并运行 `git lfs pull` 获取图片内容。PUML 与设计文档保留为普通可编辑文本。深色效果图为视觉草案，生成方式与提示词保存在同目录，不代表功能已经实现。
 
 ## 仓库分工
 

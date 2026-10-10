@@ -1,0 +1,82 @@
+@startsalt
+skinparam defaultFontName Microsoft YaHei
+skinparam backgroundColor #FAFAFC
+scale 1.5
+{
+  <b>MusicFS · 曲目列表页 v0.5</b> — 常驻复选框 / 动态加载 / 可折叠侧栏
+  {+
+    {
+      {
+        <size:22><b>MusicFS</b></size>
+        <color:#777777>Banner 固定</color>
+        {SI
+          [ 搜索                    ]
+          [ 推荐                    ]
+          [ <b>曲目列表 · 当前页</b>     ]
+          [ 歌单管理                ]
+          .
+          [ <b>⌄ 我的</b> ]
+          我的收藏
+          最近播放
+          .
+          { [ <b>⌄ 歌单</b> ] | [ + ] }
+          轻音乐收藏
+          夜间漫游
+          工作时听
+          NAS 收藏
+          年度精选
+          .
+          .
+          <color:#777777>我的 / 歌单可独立折叠</color>
+          .
+          .
+          .
+          .
+          .
+          .
+          .
+          .
+          .
+          .
+        }
+        { [头像] | 我的账号 | [ ··· ] }
+        <color:#777777>用户区固定在播放栏上方</color>
+      } | {
+        { [ 返回 ] | <size:22><b>曲目列表</b></size> | . | [ <&cog> ] | [ <&brush> ] | <color:#CCCCCC>     │     </color> | [ <&browser> ] | [ <&minus> ] | [ □ ] | [ <&x> ] }
+        <color:#777777>图标悬停提示：设置 / 换肤 / 迷你模式 / 最小化 / 最大化 / 关闭</color>
+        {SI
+          {/ <b>全部曲目</b> | 歌手 | 专辑 | 流派 | 文件夹 }
+          .
+          { 来源 | ^全部来源^ | 格式 | ^全部格式^ | [] 仅收藏 | [] 仅可播放 | [ 更多筛选 ] }
+          { "搜索当前列表：曲名 / 歌手 / 专辑                  " | [ 查找 ] }
+          <color:#777777>共 1,286 首 · 示例数据</color>
+          .
+          { [ 播放全部 ] | [ 加入队列 ] | 排序 | ^最近添加^ | [ 降序 ] }
+          .
+          {#
+            [] <color:#FAFAFC>·</color> | 序号 | <b>曲名</b> | <b>歌手</b> | <b>专辑</b> | <b>来源</b> | 格式 | <b>时长</b> | 操作
+            [] <color:#FAFAFC>·</color> | 播放中 | 鳥の詩 | Lia | AIR | NAS 收藏 | FLAC | 06:08 | [ 更多 ]
+            [] <color:#FAFAFC>·</color> | 02 | 夜行 | ヨルシカ | 盗作 | 本地音乐 | FLAC | 03:22 | [ 更多 ]
+            [] <color:#FAFAFC>·</color> | 03 | One Last Kiss | 宇多田ヒカル | One Last Kiss | NAS 收藏 | AAC | 04:12 | [ 更多 ]
+            [] <color:#FAFAFC>·</color> | 04 | 花火 | DAOKO | 示例专辑 A | 本地音乐 | MP3 | 04:49 | [ 更多 ]
+            [] <color:#FAFAFC>·</color> | 05 | 星の夜 | 示例歌手 B | 示例专辑 B | NAS 收藏 | FLAC | 05:16 | [ 更多 ]
+            [] <color:#FAFAFC>·</color> | 06 | 城市散步 | 示例歌手 C | 示例专辑 C | 本地音乐 | MP3 | 03:46 | [ 更多 ]
+            [] <color:#FAFAFC>·</color> | 07 | 夜间漫游 - Live | 示例歌手 D | 现场录音 | NAS 收藏 | FLAC | 04:35 | [ 更多 ]
+            [] <color:#FAFAFC>·</color> | 08 | 远方（来源离线） | 示例歌手 E | 示例专辑 E | NAS 归档 | FLAC | 04:28 | [ 更多 ]
+          }
+          .
+          <color:#777777>正在加载…</color>
+          <color:#777777>表头吸顶；排序作用于全部结果；更多 / 右键打开曲目菜单</color>
+        }
+      }
+    }
+    ==
+    {
+      { [ 封面 ]
+        鳥の詩
+        Lia · NAS 收藏 } | { [ 循环 ] | [ 上一首 ] | [ 暂停 ] | [ 下一首 ] | 01:24 / 06:08 } | { [ 收藏 ] | [ 歌词 ] | [ 队列 ] | [ 音量 ] }
+    }
+  }
+  <color:#777777>示例内容；分类、筛选及排序能力待实现验证。底部播放器始终固定。</color>
+}
+@endsalt

@@ -47,9 +47,9 @@ Server 已确定使用 Go。源码采用用户指定布局：各实现仓库的 
 | POST /auth/session | P1 | 以 Authorization Bearer 提交管理员引导凭据，交换 HttpOnly 会话 Cookie 与 csrfToken |
 | GET /auth/session | P1 | 当前用户、权限、csrfToken、有效期；未登录 401 |
 | DELETE /auth/session | P1 | 撤销当前会话及关联授权；带 CSRF 校验 |
-| GET /provider-instances | P2 | 当前用户可见实例的 id、名称、角色能力、可用性和账号状态；不返回凭据/磁盘根路径 |
-| POST /provider-instances/{id}/scan-jobs | P2 | mode=full/incremental，返回 jobId；重复任务合并规则明确 |
-| GET /scan-jobs/{id} | P2 | 状态、进度、完整性、错误与 lastSuccessAt |
+| GET /provider-instances | P2 | 当前用户可见实例的 id、名称、角色能力、可用性和账号状态，以及插件导入选项声明、默认值和授权根编号/显示名；不返回凭据/磁盘根路径 |
+| POST /provider-instances/{id}/scan-jobs | P2 | mode=full/incremental、schemaRevision、选中的 rootIds 和 options；返回 jobId，仅相同完整计划的活动任务合并，浅层扫描不对范围外曲目做缺失对账 |
+| GET /scan-jobs/{id} | P2 | 状态、进度、完整性、错误、该计划的 lastSuccessAt，以及 rootIds、schemaRevision 和归一后的 effectiveOptions |
 | GET /source-tracks | P2 | providerInstanceId、limit、cursor；返回 items、nextCursor、libraryRevision |
 | POST /playback/sessions | P3 | sourceTrackId、偏好、终端能力；返回 sessionId 与播放描述 |
 | DELETE /playback/sessions/{id} | P3 | 幂等停止；禁止其他用户关闭会话，释放资源 |
