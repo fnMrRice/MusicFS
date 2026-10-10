@@ -1,0 +1,9 @@
+[submodule "client"]
+	path = client
+	url = https://github.com/fnMrRice/MusicFS-client.git
+[submodule "server"]
+	path = server
+	url = https://github.com/fnMrRice/MusicFS-server.git
+[submodule "web"]
+	path = web
+	url = https://github.com/fnMrRice/MusicFS-web.git

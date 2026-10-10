@@ -1,6 +1,1 @@
-# Independent implementation repositories in the local workspace.
-/client/
-/server/
-/web/
-
 /deploy/

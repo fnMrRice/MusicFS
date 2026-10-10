@@ -1,7 +1,7 @@
 # MusicFS 工作约定
 
 - 架构事实来源：[MusicFS 架构](https://github.com/fnMrRice/MusicFS/blob/main/docs/architecture.md)。
-- 本仓库管理总体架构、共享图示与线框；client、server、web 目录是独立实现仓库，不纳入本仓库提交。
+- 本仓库管理总体架构、共享图示与线框；client、server、web 目录作为 Git 子模块关联独立实现仓库。实现代码提交到对应仓库，本仓库只记录子模块地址与提交版本；更新实现版本时同步提交对应子模块指针。
 - Server 仓库拥有 OpenAPI、事件协议、Music Provider / Scraper 插件 SDK 与数据库迁移；修改协议时同步评估总体架构及客户端兼容性。
 - 移动文件使用 `git mv`，不以重写后删除代替。
 - 源文件最好不超过 400 行，超出时应按模块拆分；因格式化或确实无法避免时可适当放宽。
