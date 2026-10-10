@@ -1,6 +1,6 @@
 # MusicFS 分阶段实施总览
 
-状态：2026-10-09，本地文件扫描与最简 Web 播放基线已在独立 Server/Web 仓库落地。本文保留完整交付顺序与共同约定；每步提交、通过项和剩余验收见 [Server 实施记录](../server/docs/validation/progress.md)与 [Web 兼容记录](../web/docs/compatibility.md)。P5—P7 及桌面 Client 仍待实施。
+状态：2026-10-10，本地文件/NCM与最简Web播放已有实现，Server已继续完成P5识别、P6媒体与受限写回，以及P7匿名资料、推荐、远程/个人歌单和人工时间对齐恢复。P8备份、安装制品与生命周期按步骤验收；每步提交、通过项和剩余环境验证见 [Server 实施记录](../server/docs/validation/progress.md)与 [Web 兼容记录](../web/docs/compatibility.md)。桌面Client、动态插件启停、平台账号和完整在线音频仍不属于已交付能力。
 
 后续授权的本地 NCM 插件已完成独立解密、扫描及最简 Web 接入，沿用既有鉴权与播放协议；参考来源、配置和验收边界见 [NCM 插件说明](../server/docs/ncm.md)。该增量不代表网易云在线 Provider 或账号功能已经实现。
 
@@ -49,7 +49,7 @@ Server 已确定使用 Go。源码采用用户指定布局：各实现仓库的 
 | DELETE /auth/session | P1 | 撤销当前会话及关联授权；带 CSRF 校验 |
 | GET /provider-instances | P2 | 当前用户可见实例的 id、名称、角色能力、可用性和账号状态，以及插件导入选项声明、默认值和授权根编号/显示名；不返回凭据/磁盘根路径 |
 | POST /provider-instances/{id}/scan-jobs | P2 | mode=full/incremental、schemaRevision、选中的 rootIds 和 options；返回 jobId，仅相同完整计划的活动任务合并，浅层扫描不对范围外曲目做缺失对账 |
-| GET /scan-jobs/{id} | P2 | 状态、进度、完整性、错误、该计划的 lastSuccessAt，以及 rootIds、schemaRevision 和归一后的 effectiveOptions |
+| GET /scan-jobs/{id} | P2 | 状态、进度、完整性、错误、执行/重试次数、下次执行时间、该计划的lastSuccessAt，以及rootIds、schemaRevision和归一后的effectiveOptions；paused是需要处理原因后重提的终态，retry_wait由服务端有限调度 |
 | GET /source-tracks | P2 | providerInstanceId、limit、cursor；返回 items、nextCursor、libraryRevision |
 | POST /playback/sessions | P3 | sourceTrackId、偏好、终端能力；返回 sessionId 与播放描述 |
 | DELETE /playback/sessions/{id} | P3 | 幂等停止；禁止其他用户关闭会话，释放资源 |
@@ -57,7 +57,9 @@ Server 已确定使用 Go。源码采用用户指定布局：各实现仓库的 
 | POST /playback/sessions/{id}/seek | P4 | attemptId、positionMs、Idempotency-Key；timeRestart 返回新尝试/地址 |
 | POST /playback/sessions/{id}/recover | P3/P4 | attemptId、可观察错误、positionMs、Idempotency-Key；按已实现能力恢复或明确报错 |
 
-P3 的 recover 只处理已经支持的同源情况，不为通过接口测试而伪造跨来源能力。P5—P7 所需匹配、内容、歌单与推荐接口沿用跨端架构，并在实现对应阶段时补完整 Schema 和契约测试。
+P3的recover处理同源情况；P7新增独立recover-source，并要求当前授权、同Recording、两端固定资产及适用的时间证据。缺少证据返回明确重新播放提示，不伪造跨来源续播。P5—P7的匹配、内容、歌单与推荐已在[Server OpenAPI](../server/docs/contracts/openapi.yaml)补齐本期精确路径；最简Web仍只消费列表与播放，不因Server接口增加而扩成管理台。
+
+P8的[生命周期协议](../server/docs/lifecycle.md)由测试客户端验证Server行为，桌面进程启动器仍未实现。[完整备份恢复](../server/docs/backup.md)和[安装制品](../server/docs/deployment.md)保留实际Windows/WSL证据及未测环境，不能将容器样例、非零PCM或交叉编译分别当成Docker运行、人工听音或目标系统执行。
 
 ### 3.1 文件列表
 

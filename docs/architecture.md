@@ -1,6 +1,6 @@
 # MusicFS 跨端架构设计
 
-状态：设计草案 v0.4；2026-10-09。本文只定义 Server 与桌面 Client / Web 之间共同遵守的职责边界、数据语义、协议和协作流程，不代表功能已经实现。
+状态：共同架构 v0.5；2026-10-10。本文定义 Server 与桌面 Client / Web 之间共同遵守的职责边界、数据语义、协议和协作流程；长期目标不代表已全部实现。当前交付及平台限制见[实施总览](implementation.md)和各实现仓库的验证记录。
 
 ## 1. 文档范围与仓库分工
 
@@ -15,7 +15,7 @@
 | [Client 音频与插件](../client/docs/audio-processing.md) | WMF / FFmpeg 适配、主题、DSP、切歌淡化及外部控制 API 插件 |
 | [Web 设计](../web/docs/design.md) | 浏览器 UI、能力探测与浏览器播放适配 |
 
-Server 后续在自身 `docs/contracts` 维护 OpenAPI、事件 Schema 和带版本的协议 SDK；各运行端维护自己的插件 SDK。协议不依赖实现语言，插件二进制不承诺跨运行端通用。桌面 UI 框架、渲染方式及与 Web 的复用方式待验证后确定，不以 Tauri/WebView 为前提。两个界面可以共享协议模型、资源及适用组件，复用须记录兼容版本。
+Server 在自身 `docs/contracts` 维护 OpenAPI、事件 Schema 和带版本的协议 SDK；各运行端维护自己的插件 SDK。协议不依赖实现语言，插件二进制不承诺跨运行端通用。桌面 UI 框架、渲染方式及与 Web 的复用方式待验证后确定，不以 Tauri/WebView 为前提。两个界面可以共享协议模型、资源及适用组件，复用须记录兼容版本。
 
 内部文档使用相对链接，跨仓库链接依赖根目录下同时检出 `server/`、`client/`、`web/` 的工作区布局。
 
@@ -53,7 +53,7 @@ NCM 的 SourceAsset 仍标识原始加密容器，文件大小、摘要与版本
 
 ## 4. API 与事件草案
 
-业务路由前缀 `/api/v1`。错误包含 `code/message/requestId/retryAfter`，绝对时间采用 UTC ISO 8601，曲目位置和持续时间使用毫秒，列表使用游标。下面描述共同契约，具体字段和错误码在 Server 的协议定义中定稿。
+业务路由前缀 `/api/v1`。错误包含 `code/message/requestId/retryAfter`，绝对时间采用 UTC ISO 8601，曲目位置和持续时间使用毫秒，列表使用游标。下面保留共同目标中的 API 族；已经交付的精确路径、字段、能力与错误码以 [Server OpenAPI](../server/docs/contracts/openapi.yaml) 为准，不能由草案路由推断接口存在。事件 Schema 不等于已实现 WebSocket 推送。
 
 | 路由 | 共同语义 |
 | --- | --- |
@@ -62,27 +62,32 @@ NCM 的 SourceAsset 仍标识原始加密容器，文件大小、摘要与版本
 | GET /providers、/provider-instances | 用户可访问的 Music Provider 实例、能力及账号状态 |
 | GET /scrapers、/scraper-instances | 独立刮削插件、实例、能力及状态 |
 | POST /provider-instances/{id}/scan-jobs | 触发授权本地/NAS 来源的扫描，返回 jobId |
-| GET /scan-jobs/{id} | 扫描状态、进度、完整性、错误与上次成功时间 |
+| GET /scan-jobs/{id} | 扫描状态、进度、完整性、错误、执行次数、下次重试时间与上次成功时间；retry_wait等待服务端调度，paused需要处理原因后显式重提 |
 | GET /source-tracks | 用户可见来源曲目，按实例过滤与固定 libraryRevision 游标分页 |
 | GET /search?q=...&cursor=... | 按来源部分成功，候选关联不强制折叠 |
 | GET /recordings/{id}/sources | 可选来源、音质信息与当前用户可用性 |
-| GET /recommendations/playlists?providerInstanceId=...&cursor=... | 按实例及当前账号获取推荐；返回出处、分页、有效期和 stale/失败状态 |
-| GET /playlists、/playlists/{id}/entries | 歌单列表及固定 revision 的条目分页 |
-| POST /playlists/{id}/bindings | 配置子歌单引用与聚合规则 |
-| POST /sync-jobs | 创建同步任务并返回 jobId，界面不把请求成功等同于同步已发布 |
+| GET /recommendations | 当前可用的匿名推荐聚合，保留实例出处、部分失败、有效期和stale状态；账号能力另行声明 |
+| POST/GET /playlists、GET/PUT /playlists/{id} | 本人歌单及有序聚合规则，整体编辑携带预期规则修订 |
+| POST /playlists/{id}/rebuild、GET /playlists/{id}/snapshots/{revision} | 生成聚合快照并按固定修订分页，保留所有出处 |
+| GET/POST /playlists/{id}/hidden-rules、PUT /playlists/{id}/hidden-rules/{ruleId} | 持久隐藏意图、修订更新与扩大目标时的显式确认 |
+| POST/GET /remote-playlists、POST /remote-playlists/{id}/sync-jobs | 导入远程绑定、显式创建同步任务；请求成功不等于快照已发布 |
+| GET /remote-playlist-sync-jobs/{id}、GET /remote-playlists/{id}/snapshots/{revision} | 同步状态、保守移除及固定历史快照 |
 | GET /source-tracks/{id}/media | 歌词/封面版本、来源、语言、时序适用范围与当前选择 |
 | GET /media/{objectId} | 鉴权后读取文件内容 |
 | POST /metadata-jobs、GET /metadata-jobs/{id} | 创建刮削/预览任务；读取进度、逐目标状态、候选及预览引用 |
-| POST /metadata-jobs/{id}/apply、/{id}/cancel | 按目标修订应用选用结果，或取消未完成工作 |
+| POST /metadata-candidates/{id}/apply、/metadata-jobs/{id}/cancel | 按目标修订应用选用结果，或取消未完成工作 |
 | POST /media | 上传/编辑生成新的内容对象，不直接替换当前选择 |
 | PUT /source-tracks/{id}/media-selection | 按预期修订选择内容并记录人工锁定 |
 | POST /metadata-write-jobs | 按既有授权配置、预期资产版本申请写入原文件，返回任务状态 |
 | POST /playback/sessions | 提交 recordingId/sourceTrackId、偏好和客户端能力，返回播放描述 |
 | DELETE /playback/sessions/{id} | 幂等停止本人会话并释放资源 |
 | POST /playback/sessions/{id}/recover | 提交 attemptId、可观察故障和 positionMs 曲目时间，取得恢复描述或明确的用户操作要求 |
+| GET /playback/recovery-profile、POST /timeline-evidence、GET /timeline-evidence/{id} | 获取处理配置及创建/读取人工时间对齐证据；撤销使用POST /timeline-evidence/{id}/revoke |
+| POST /playback/sessions/{id}/recover-source | 对当前attempt申请指定目标来源，证据适用时continue，否则promptRestart；不按指纹相似度自动推导偏移 |
 | POST /playback/sessions/{id}/seek | 对 timeRestart 输出提交 attemptId、positionMs，返回新尝试和新输出地址 |
 | GET /playback/sessions/{id}/attempts/{attemptId}/stream | 鉴权交付该次尝试的固定表示；客户端使用返回的 streamUrl，不自行拼接 |
 | GET /events | WebSocket 任务、歌单、可用性与会话事件 |
+| GET /lifecycle、POST /lifecycle/leases及续租/释放子路径 | 本地鉴权的启动归属与多客户端租约；仅client-managed模式自动收尾，不代表桌面启动器已经实现 |
 
 创建任务、会话及可能重试的播放控制请求支持 `Idempotency-Key`；seek/recover 必须校验请求所属尝试，过期请求不能覆盖较新的播放状态。采用 `If-Match` 的修订检查失败返回 412，其他业务状态冲突使用明确的 409 错误。事件含 eventId、revision、type；重连读取最新快照，事件不是唯一事实来源。Provider 账号无权限、来源暂不可用、客户端不支持和任务失败应分别呈现。
 
