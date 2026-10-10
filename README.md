@@ -8,6 +8,10 @@ NCM 插件已接入本地扫描与播放，支持提取容器内的 MP3/FLAC；�
 
 Server现使用[版本化YAML配置](server/docs/configuration.md)，配置读写服务支持修订检查、原子保存及恢复；旧JSON配置不兼容。保存配置与运行时应用分离，动态插件启停仍待后续实现；本轮证据见[配置验收](server/docs/validation/configuration.md)。
 
+## 本地打包与启动
+
+在主仓库运行 `./scripts/package.ps1` 生成 Windows 64 位安装包，或运行 `sh scripts/package.sh` 生成 Linux 64 位安装包，默认输出到根目录 `deploy/`。组合包包含 Server、插件和 Web；解压后 Windows 双击 `start.bat`，Linux 运行 `sh ./start.sh`。构建环境、参数和配置步骤见[打包说明](docs/packaging.md)与[启动说明](docs/packaging-start.md)。
+
 ## 实现计划
 
 新增 [NFS/SMB NAS 插件设计](server/docs/nas-providers.md)与 [Bilibili 音频插件设计](server/docs/bilibili-provider.md)：B 站匿名访问优先，以收藏夹为主要歌单来源，并补充音频区独立歌单。当前仅完成设计与[增量实施计划](server/docs/implementation/nas-bilibili.md)，尚未实现；开源候选及采用边界见[参考记录](server/docs/provider-references.md)。
