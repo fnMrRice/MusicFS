@@ -3,7 +3,7 @@ title MusicFS - 跨端协作边界
 top to bottom direction
 skinparam componentStyle rectangle
 
-component "MusicFS-client\n原生客户端（实现待定）" as Client
+component "MusicFS-client\nReact / Tauri + 原生音频（待实现）" as Client
 component "MusicFS-web\n浏览器客户端" as Web
 component "MusicFS-server" as Server
 cloud "授权音频与元数据来源\n本地文件 / 挂载 NAS / 在线来源\n规划新增：NFS / SMB 直连、Bilibili" as Sources

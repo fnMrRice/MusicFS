@@ -10,6 +10,8 @@
 
 ## 1. 本期范围与阅读入口
 
+桌面新增独立的 [React + Tauri 实现方案](../client/docs/implementation.md)：React/TypeScript 界面、Rust 原生播放和可安装插件，按 C0—C7 验证 Windows/macOS/Linux；当前全部待实施。现有 Server 的 `htmlAudio` 能力与传输模型需先增加兼容的原生协商，精确变更由 Server 维护，详见 [Client 接入前置项](../client/docs/implementation/server-integration.md)。该增量不重写下文 Server/Web 历史 P0—P8 验收状态。
+
 新增设计增量：[NAS / Bilibili 插件实施计划](../server/docs/implementation/nas-bilibili.md)，全部待实现。NFS/SMB 原生直连分别交付；B 站按匿名公开视频与公开收藏夹优先，补充音频区曲目/独立歌单，再接入可选账号与私有收藏夹。此增量不改变历史 P0—P8 完成记录，也不将平台登录作为匿名播放前置条件。
 
 Server 已确定使用 Go。源码采用用户指定布局：各实现仓库的 `src/` 放源码，`src/app/` 放程序入口，其余模块按职责放在 `src/` 下；`tests/` 集中放测试。这是项目选择的布局，不声称它是 Go 唯一标准。语言和工具仍遵循 Go module、包导入、测试发现等规则。
@@ -20,8 +22,9 @@ Server 已确定使用 Go。源码采用用户指定布局：各实现仓库的 
 | [Server 实施入口](../server/docs/implementation.md) | Go 工程、配置、存储、任务、扫描、流交付与后续能力 |
 | [Server 插件实施](../server/docs/implementation/plugins.md) | 插件协议、宿主、Local Files、音频处理、Scraper 与平台适配 |
 | [Web 实施](../web/docs/implementation.md) | 文件列表、原生播放控件和最小错误/定位交互 |
+| [Client 实施](../client/docs/implementation.md) | React/Tauri 工程、原生核心、动态插件、平台集成与独立 C0—C7 验收 |
 
-桌面 Client 的工程、主题、原生输出、WMF、桌面歌词和本地启动器不在这次实施计划中。既有架构保留，不能把暂不实现描述为取消需求。最小 Web 不建设搜索推荐门户、歌单编辑器、刮削管理台或视觉设计系统。
+桌面 Client 的工程、主题、原生输出、WMF、桌面歌词和本地启动器不属于下文历史 Server/Web 阶段，改由独立 C0—C7 计划实施。下文“最小 Web 不建设搜索推荐门户、歌单编辑器、刮削管理台或视觉设计系统”仅描述原阶段范围；后续 React 界面及实际状态见 Web 自身记录。
 
 ## 2. 阶段、依赖与完成定义
 

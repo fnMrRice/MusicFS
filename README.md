@@ -20,8 +20,9 @@ Server 使用[版本化 YAML 配置](server/docs/configuration.md)，支持插�
 - [Server 分阶段实施](server/docs/implementation.md)：工程基础、音乐库、原流与处理后播放、匹配、刮削、在线来源及交付。
 - [Server 插件实施](server/docs/implementation/plugins.md)：Local Files、音频处理、独立 Scraper 和平台 Provider。
 - [最小 Web 实施](web/docs/implementation.md)：真实列表、登录、播放控件、定位与浏览器验收。
+- [桌面 React + Tauri 实施](client/docs/implementation.md)：Rust 原生播放、可安装插件、界面复用、三平台交付与 C0—C7 验收；尚未实现。
 
-源码采用 `src/`，程序入口放 `src/app/`，实现模块放在 `src/` 对应目录，测试统一放各实现仓库根目录的 `tests/`。P3 首次完成本地文件经 Web 实际播放，P4 补齐服务端解码、DSP、编码/封装及定位；基本可用交付需通过 P4 与对应 P8 验收。桌面 Client 的实现不在本轮计划内。
+源码采用 `src/`，程序入口放 `src/app/`，实现模块放在 `src/` 对应目录，测试统一放各实现仓库根目录的 `tests/`。P3 首次完成本地文件经 Web 实际播放，P4 补齐服务端解码、DSP、编码/封装及定位；基本可用交付需通过 P4 与对应 P8 验收。桌面 Client 采用独立 C0—C7 计划，原生播放协议增量、动态插件及平台能力尚待实施验证。
 
 ## 设计文档
 
@@ -49,7 +50,7 @@ PNG、JPG、JPEG、WebP、GIF 图片使用 Git LFS 保存；克隆后需安装 G
 | [MusicFS](.) | 跨端架构、协议语义与协作图示 |
 | [MusicFS-server](server/) | 后端、来源/刮削/音频插件、存储、部署、OpenAPI 与事件协议 |
 | [MusicFS-web](web/) | Web UI、能力探测、浏览器播放适配与内部设计 |
-| [MusicFS-client](client/) | 原生播放器、主题/音频/外部控制插件、歌词窗口、本地启动器与桌面内部设计；UI 实现待定 |
+| [MusicFS-client](client/) | React/Tauri 桌面、Rust 原生播放器、主题/音频/外部控制插件、歌词窗口、本地启动器与内部设计；尚未实现 |
 
 `client/`、`server/`、`web/` 是 Git 子模块，分别关联三个独立实现仓库。本仓库记录各子模块的提交版本，以便检出一致的完整工作区。所有仓库均为私有，克隆时需要有四个仓库的读取权限。
 
