@@ -23,16 +23,11 @@ if not exist "configs\server.example.yaml" (
 )
 copy /y "configs\server.example.yaml" "configs\server.yaml" >nul
 if errorlevel 1 goto failed
-echo Created configs\server.yaml. Edit it to configure music paths and enable plugins.
+echo Created configs\server.yaml. Select music directories in Web settings after startup.
 
 :config_ready
 if exist "configs\server.yaml\" (
     echo ERROR: configs\server.yaml must be a regular file.
-    goto failed
-)
-if not exist "music\" mkdir "music"
-if not exist "music\" (
-    echo ERROR: Cannot create the music directory.
     goto failed
 )
 if defined MUSICFS_ADMIN_TOKEN goto start_server

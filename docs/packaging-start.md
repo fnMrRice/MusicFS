@@ -17,8 +17,8 @@
 
 本地音乐目录使用以下流程：
 
-1. 停止服务，编辑 `configs/server.yaml` 中 `musicfs.localfiles` 的 `local` 实例，设置 `permissions.readDirectories`，例如 `['D:/Music']`。这是允许访问的目录范围，不会自动加入曲库；相对路径以配置文件所在目录为基准。重启使授权生效。
-2. 使用管理员 API 读取并更新 `/api/v1/admin/plugin-instances/local/configuration`，选择授权范围内的实际音乐目录。新增目录须提供 Server 上的绝对路径。设置保存在 Server 的数据库中，不回写 YAML；Web 当前没有目录编辑表单。请求所需的管理员会话、CSRF、ETag 与 `If-Match`、`Idempotency-Key` 及完整示例见源码仓库的 [插件配置说明](https://github.com/fnMrRice/MusicFS-server/blob/main/docs/plugin-configuration.md)。
+1. 默认允许当前 Server 运行用户的 Music 目录；Windows 首次启动还会检查各磁盘根目录下的常见音乐下载目录。管理页面只读显示这些允许范围，初次没有选定的导入目录。若需调整允许范围，停止服务并编辑 `configs/server.yaml` 中 `musicfs.localfiles` 的 `local` 实例，设置 `permissions.readDirectories`，例如 `['D:/Music']`，再重启生效；相对路径以配置文件所在目录为基准。
+2. 使用管理员账号打开 Web「设置 → 音乐来源 → 管理音乐目录」，点击「添加本地目录」，在弹窗内选择允许的根目录或其子目录，再保存。选择保存在 Server 数据库，不回写 YAML，也不会自动扫描。也可使用管理员目录浏览与配置 API，完整示例见源码仓库的 [插件配置说明](https://github.com/fnMrRice/MusicFS-server/blob/main/docs/plugin-configuration.md)。
 3. 等待配置操作完成后，在另一个终端进入安装目录，使用同一管理员令牌运行包内扫描脚本。扫描成功后刷新 Web 曲目列表。
 
 Windows 扫描示例（启动时未使用外部环境变量令牌）：

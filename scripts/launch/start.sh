@@ -10,10 +10,9 @@ chmod +x ./bin/musicfs*
 if [ ! -e ./configs/server.yaml ]; then
     [ -f ./configs/server.example.yaml ] || fail 'configs/server.example.yaml is missing.'
     cp ./configs/server.example.yaml ./configs/server.yaml
-    printf '%s\n' 'Created configs/server.yaml. Edit it to configure music paths and enable plugins.'
+    printf '%s\n' 'Created configs/server.yaml. Select music directories in Web settings after startup.'
 fi
 [ -f ./configs/server.yaml ] || fail 'configs/server.yaml must be a regular file.'
-mkdir -p ./music
 if [ -z "${MUSICFS_ADMIN_TOKEN:-}" ]; then
     token_file=./configs/admin-token.txt
     if [ ! -e "$token_file" ]; then
