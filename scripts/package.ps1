@@ -22,23 +22,20 @@ try {
             throw "Missing $tool. Install the toolchain documented in docs/packaging.md and add it to PATH."
         }
     }
-    if ($TargetOS -eq 'linux' -and -not (Get-Command tar -ErrorAction SilentlyContinue)) {
-        throw 'Linux packaging requires tar.'
-    }
     foreach ($file in @('server/go.mod', 'web/package-lock.json')) {
         if (-not (Test-Path -LiteralPath (Join-Path $root $file))) {
             throw 'Missing submodules. Run git submodule update --init --recursive first.'
         }
     }
     if (-not $Output) {
-        $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
-        $Output = Join-Path $root "deploy/musicfs-$TargetOS-amd64-$stamp"
+        $Output = Join-Path $root "deploy/musicfs-$TargetOS-amd64"
     }
     $Output = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Output)
-    $archive = if ($TargetOS -eq 'windows') { "$Output.zip" } else { "$Output.tar.gz" }
-    foreach ($path in @($Output, $archive, "$archive.sha256")) {
-        if (Test-Path -LiteralPath $path) { throw "Output already exists: $path" }
-    }
+    $helper = Join-Path $PSScriptRoot 'package-files.mjs'
+    Invoke-Checked 'node' @($helper, 'check', $Output)
+    $Output = $Output.TrimEnd([char[]]'\/')
+    $stageName = '.' + (Split-Path $Output -Leaf) + '.build-' + [guid]::NewGuid().ToString()
+    $stage = Join-Path (Split-Path $Output -Parent) $stageName
     $webStatus = & git -C (Join-Path $root 'web') status --porcelain
     if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect Web working tree.' }
     if ($webStatus -and -not $AllowDirty) {
@@ -61,7 +58,7 @@ try {
     }
     Set-Location (Join-Path $root 'server')
     $releaseArgs = @('run', '-mod=readonly', './scripts/release', '--os', $TargetOS,
-        '--output', $Output, '--web-root', $webRoot)
+        '--output', $stage, '--web-root', $webRoot)
     if ($AllowDirty) { $releaseArgs += '--allow-dirty' }
     # The release builder runs on the host and selects its own target.
     $savedEnvironment = @{}
@@ -77,38 +74,14 @@ try {
         }
     }
 
-    # Keep the bundle incomplete until launchers and checksums are finalized.
-    $marker = Join-Path $Output '.incomplete'
-    [IO.File]::WriteAllText($marker, "Packaging has not completed.`n")
-    $launchers = if ($TargetOS -eq 'windows') { @('start.bat') } else { @('start.sh') }
-    foreach ($name in $launchers) {
-        Copy-Item -LiteralPath (Join-Path $root "scripts/launch/$name") -Destination (Join-Path $Output $name)
-    }
-    Copy-Item -LiteralPath (Join-Path $root 'docs/packaging-start.md') -Destination (Join-Path $Output 'START.md')
     $webRevision = & git -C (Join-Path $root 'web') rev-parse HEAD
     if ($LASTEXITCODE -ne 0) { throw 'Cannot read Web revision.' }
-    $source = [ordered]@{ webRevision = "$webRevision"; webDirty = [bool]$webStatus; webRebuilt = -not [bool]$SkipWebBuild }
-    [IO.File]::WriteAllText((Join-Path $Output 'web-source.json'), ($source | ConvertTo-Json) + "`n", [Text.UTF8Encoding]::new($false))
-    $prefix = $Output.TrimEnd([char[]]'\/') + [IO.Path]::DirectorySeparatorChar
-    $lines = @(Get-ChildItem -LiteralPath $Output -File -Recurse -Force | ForEach-Object {
-        $relative = $_.FullName.Substring($prefix.Length).Replace('\', '/')
-        if ($relative -ne 'SHA256SUMS' -and $relative -ne '.incomplete') {
-            $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
-            "$hash  $relative"
-        }
-    } | Sort-Object)
-    [IO.File]::WriteAllText((Join-Path $Output 'SHA256SUMS'), ($lines -join "`n") + "`n", [Text.UTF8Encoding]::new($false))
-    Remove-Item -LiteralPath $marker
-    Set-Location (Split-Path $Output -Parent)
-    if ($TargetOS -eq 'windows') {
-        Compress-Archive -LiteralPath $Output -DestinationPath $archive -CompressionLevel Optimal
-    } else {
-        Invoke-Checked 'tar' @('-czf', $archive, (Split-Path $Output -Leaf))
-    }
-    $archiveHash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
-    [IO.File]::WriteAllText("$archive.sha256", "$archiveHash  $([IO.Path]::GetFileName($archive))`n", [Text.UTF8Encoding]::new($false))
-    Write-Host "Package: $archive"
-    Write-Host "Checksum: $archive.sha256"
+    $webDirty = ([bool]$webStatus).ToString().ToLowerInvariant()
+    $webRebuilt = (-not [bool]$SkipWebBuild).ToString().ToLowerInvariant()
+    Invoke-Checked 'node' @($helper, 'assemble', $stage, $root, $TargetOS, "$webRevision", $webDirty, $webRebuilt)
+    Invoke-Checked 'node' @($helper, 'publish', $stage, $Output)
+    Write-Host "Build directory: $Output"
+    Write-Host "Checksums: $(Join-Path $Output 'SHA256SUMS')"
 } finally {
     Set-Location $originalLocation
 }

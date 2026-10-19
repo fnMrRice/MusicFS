@@ -1,0 +1,45 @@
+@startuml
+title MusicFS 插件运行边界（设计；Client 尚未实现）
+left to right direction
+skinparam componentStyle rectangle
+
+rectangle "Client：单一原生宿主进程" as Client {
+  component "Rust 内核\nPlayerCore / 会话 / 生命周期" as Core
+  component "Client Plugin Host\n安装 / 校验 / 版本 / 租约" as CHost
+  component "原生插件动态库\nWindows DLL / macOS dylib / Linux so\nC++ 插件：CMake / C++23" as Dll
+  component "音频图与设备时钟\n有界缓冲 / 切图" as Audio
+  component "声明式主题资源" as Theme
+  Core --> CHost : 类型化命令与配置
+  CHost --> Dll : 同进程版本化 C ABI
+  Audio <--> Dll : 原生数据 / 明确缓冲所有权
+  Core --> Audio : 状态与播放代次
+  CHost --> Theme : 校验 / 加载
+}
+
+rectangle "Server 核心进程" as Server {
+  component "Go 内核\n鉴权 / Library / 事务 / Gateway" as SCore
+  component "Server Plugin Host" as SHost
+  SCore --> SHost : 受授权任务 / 生命周期
+}
+
+rectangle "Server 独立插件进程\n按角色 / 任务受管" as Workers {
+  component "Provider / Scraper / Audio\n已有 Go 插件保留\nC++ 插件：CMake / C++23 可执行程序" as Worker
+}
+
+Core --> SCore : 版本化 HTTP / 能力 / 播放协商
+SCore --> Audio : 授权音频流 / 固定表示
+SHost <--> Worker : JSON-RPC / stdio 控制\n任务授权二进制数据通道
+
+note bottom of Client
+  不使用插件 Worker 或独立音频引擎进程。
+  原生崩溃可影响整个 Client；库保留到进程退出。
+  不提供插件卸载；启停、更新和回滚重启后生效。
+  WebView 系统辅助进程不属于插件执行模型。
+end note
+
+note bottom of Workers
+  进程隔离不等于 OS 权限沙箱。
+  新角色 / 资源通道需先扩展 Server 契约。
+  两端可复用算法源码，不保证共用二进制。
+end note
+@enduml

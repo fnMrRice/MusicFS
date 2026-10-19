@@ -27,6 +27,9 @@ Server 使用[版本化 YAML 配置](server/docs/configuration.md)，支持插�
 ## 设计文档
 
 - [跨端架构设计](docs/architecture.md)
+- [跨端插件边界](docs/plugin-boundaries.md)：Client 单进程动态库、Server 独立进程，以及可扩展范围与前置条件。
+- [C++ 插件构建约定](docs/native-plugins.md)：需要 C++ 的插件统一 CMake/C++23，分别适配两端 SDK；设计待实施。
+- [插件运行边界图](docs/diagrams/plugin-boundaries.puml)
 - [前端 UI 设计草案](docs/ui-design.md)：共享布局、导航与用户菜单，待确认。
 - [曲目列表页设计](docs/ui-tracks.md)：分类、筛选、排序、复选框与动态加载。
 - [搜索页设计](docs/ui-search.md)：来源选择、曲目/专辑/歌手/歌单结果与动态加载。

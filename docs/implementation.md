@@ -10,6 +10,8 @@
 
 ## 1. 本期范围与阅读入口
 
+2026-10-11 插件设计增量：按[跨端插件边界](plugin-boundaries.md)优先拆分可替换能力；Client 原生插件采用单进程动态库，Server 保留独立插件进程。需要 C++ 的插件使用 [CMake/C++23](native-plugins.md)。新增接口与各平台制品仍需实施验证，不能由本文推断插件种类已全部开放；本增量不改写下文历史阶段记录。
+
 桌面新增独立的 [React + Tauri 实现方案](../client/docs/implementation.md)：React/TypeScript 界面、Rust 原生播放和可安装插件，按 C0—C7 验证 Windows/macOS/Linux；当前全部待实施。现有 Server 的 `htmlAudio` 能力与传输模型需先增加兼容的原生协商，精确变更由 Server 维护，详见 [Client 接入前置项](../client/docs/implementation/server-integration.md)。该增量不重写下文 Server/Web 历史 P0—P8 验收状态。
 
 新增设计增量：[NAS / Bilibili 插件实施计划](../server/docs/implementation/nas-bilibili.md)，全部待实现。NFS/SMB 原生直连分别交付；B 站按匿名公开视频与公开收藏夹优先，补充音频区曲目/独立歌单，再接入可选账号与私有收藏夹。此增量不改变历史 P0—P8 完成记录，也不将平台登录作为匿名播放前置条件。

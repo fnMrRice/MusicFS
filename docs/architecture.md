@@ -1,6 +1,6 @@
 # MusicFS 跨端架构设计
 
-状态：共同架构 v0.6；2026-10-10。本文定义 Server 与桌面 Client / Web 之间共同遵守的职责边界、数据语义、协议和协作流程；长期目标不代表已全部实现。当前交付及平台限制见[实施总览](implementation.md)和各实现仓库的验证记录。本次新增 NFS/SMB 与 Bilibili 设计，尚未实现。
+状态：共同架构 v0.7；2026-10-11。本文定义 Server 与桌面 Client / Web 之间共同遵守的职责边界、数据语义、协议和协作流程；长期目标不代表已全部实现。本次细化插件职责与 CMake/C++23 约定，确定 Client 原生插件在同一原生宿主进程内加载动态库；这些设计尚未实现。当前交付及平台限制见[实施总览](implementation.md)和各实现仓库的验证记录；NFS/SMB 与 Bilibili 仍为待实现设计。
 
 ## 1. 文档范围与仓库分工
 
@@ -13,11 +13,13 @@
 | [Server 音频处理](../server/docs/audio-processing.md) | 解复用、解码、DSP、编码/封装插件与输出管理 |
 | [Client 内部架构](../client/docs/architecture.md) | 桌面模块、插件宿主、播放器核心、窗口与本地启动器 |
 | [Client 音频与插件](../client/docs/audio-processing.md) | WMF / FFmpeg 适配、主题、DSP、切歌淡化及外部控制 API 插件 |
+| [跨端插件边界](plugin-boundaries.md) | 可插件化范围、两端执行方式、扩展前置条件与共同验收 |
+| [C++ 插件构建约定](native-plugins.md) | 需要 C++ 的插件统一 CMake/C++23；C ABI、构建及制品验证 |
 | [Web 设计](../web/docs/design.md) | 浏览器 UI、能力探测与浏览器播放适配 |
 
 Local Files 的实际音乐目录、扫描默认值与监听设置由管理员接口维护，持久化到 Server 托管的插件配置数据库。未显式配置目录权限时，默认允许当前 Server 运行用户的 Music 目录，并兼容旧 YAML musicRoots 的授权；Windows 首次启用启动时还检查各逻辑磁盘根目录下的固定下载目录，将存在且可读的目录加入默认允许范围，结果持久化后不重复探测。发现目录只授予访问权限，不自动选择音乐目录或扫描入库。显式 YAML `permissions.readDirectories` 完整覆盖默认授权，空数组表示禁止访问。Web 在「本地音乐」标题右侧提供「管理目录」，标题下列出已选目录，空时显示「暂无已选择目录」。点击后直接打开目录树弹窗，以允许访问的目录为多个根，可展开并勾选根或子目录，也可取消已有选择。弹窗下方提供递归查找开关，启用递归默认深度为 0。默认折叠的高级选项包含深度限制、隐藏内容和 .nomedia 处理；勾选深度限制后可编辑数字，未限制或深度 0 表示查找全部子目录。默认跳过点开头及 Windows 隐藏文件、目录，并遵循 .nomedia 跳过其所在目录及子树。目录和递归选项一次保存，取消不改变原设置。待配置实例仍显示插件自述的「本地音乐」名称并可管理目录，保存不自动扫描。只有管理员目录浏览接口返回这些路径，普通来源与配置展示继续脱敏；Server 从授权根句柄相对打开目录，拒绝越界及链接逃逸。客户端沿用实例配置 API 和不透明修订，不直接访问插件数据库，具体路径和边界见 [Server 插件配置](../server/docs/plugin-configuration.md)。
 
-Server 在自身 `docs/contracts` 维护 OpenAPI、事件 Schema 和带版本的协议 SDK；各运行端维护自己的插件 SDK。协议不依赖实现语言，插件二进制不承诺跨运行端通用。桌面已选择 React/TypeScript + Tauri 2 + Rust 原生核心，目标 Windows、macOS、Linux；音频与用户插件宿主独立于 UI，具体库和平台能力尚待验证。两个界面可按版本共享协议模型、资源及适用展示组件，浏览器播放器与原生核心分别实现。阶段与 Server 原生播放协商前置项见 [Client 实现方案](../client/docs/implementation.md)，本次不改变现有线上协议或宣称桌面已经交付。
+Server 在自身 `docs/contracts` 维护 OpenAPI、事件 Schema 和带版本的协议 SDK；各运行端维护自己的插件 SDK。协议不依赖实现语言，插件二进制不承诺跨运行端通用。桌面已选择 React/TypeScript + Tauri 2 + Rust 原生核心，目标 Windows、macOS、Linux；音频与用户插件宿主独立于 UI，具体库和平台能力尚待验证。两个界面可按版本共享协议模型、资源及适用展示组件，浏览器播放器与原生核心分别实现。阶段与 Server 原生播放协商前置项见 [Client 实现方案](../client/docs/implementation.md)，这些桌面设计不改变现有线上协议，也不代表桌面已经交付。
 
 内部文档使用相对链接，跨仓库链接依赖根目录下递归检出 `server/`、`client/`、`web/` 三个 Git 子模块的工作区布局；主仓库记录各子模块的提交版本。
 
@@ -26,6 +28,14 @@ Server 在自身 `docs/contracts` 维护 OpenAPI、事件 Schema 和带版本的
 Server 内置插件的分发采用统一程序文件、按角色独立启动进程；自动发现、显式禁用和待配置状态见 [Server 配置](../server/docs/configuration.md#内置插件程序与自动发现)。插件协议不变；管理接口增加 `pending_configuration` 状态，界面不得将其显示为已就绪。
 
 Server 插件和实例停用只保存配置，重启 Server 后生效；当前 Worker、任务、播放及新工作准入保持。启用和实例设置仍可动态应用。管理快照及操作的 `restartRequired` 与实例 `RESTART_REQUIRED` 原因区分保存意图和运行状态；待重启时 `effectiveEnabled` 按当前运行开关计算，`appliedRevision` 不推进至新修订。旧 `mode=drain/force` 仅兼容接受，不再排空或取消。客户端不得凭保存开关或操作 succeeded 宣称已经停用，见[Server 插件管理](../server/docs/implementation/plugin-management.md)。
+
+### 1.1 插件化决策与执行边界
+
+可替换的来源适配、媒体算法、格式处理、外观与控制接入优先使用有版本的插件接口；身份、授权、状态所有权、事务发布和生命周期协调留在宿主。现有 C/S 架构支持这个方向，但“允许扩展”不代表“当前 SDK 已接受所有插件类型”：新增角色、NAS/在线音频资源通道及桌面播放协商须先补对应宿主契约，具体缺口见[跨端插件边界](plugin-boundaries.md)。
+
+Client 原生插件统一在 Rust 原生宿主的同一进程内加载，Windows 为 DLL、macOS 为 dylib、Linux 为 so，不设置 PluginWorker、插件子进程或独立音频引擎进程。主题仍为声明式资源包。Client 不提供插件卸载，已加载库保留到进程退出；插件启用、停用、更新和回滚保存为期望设置，统一重启后生效，界面区分当前状态与下次启动状态。Tauri/WebView 自身可能使用系统辅助进程，这不改变原生插件的单进程约定。插件故障可能终止整个 Client，清单权限不是原生代码沙箱。
+
+Server 保留独立进程插件，以已有版本化控制协议与受控二进制通道接入。需要 C++ 的插件与自有适配层统一用 CMake/C++23 开发；Client 通过版本化 C ABI 加载，Server 优先由 C++ 可执行插件对接现有 IPC。两端可复用算法源码，但独立构建、适配、发布和验收；不承诺共用 DLL，也不将现有 Go/Rust/TypeScript 实现统一改写为 C++。构建规范不代替各运行端 SDK。
 
 ## 2. 跨端职责与可见能力
 
