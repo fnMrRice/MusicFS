@@ -1,5 +1,5 @@
 @startuml
-title MusicFS 插件运行边界（设计；Client 尚未实现）
+title MusicFS 插件运行边界（Server DSP/存储已有增量；Client 尚未实现）
 left to right direction
 skinparam componentStyle rectangle
 
@@ -19,16 +19,22 @@ rectangle "Client：单一原生宿主进程" as Client {
 rectangle "Server 核心进程" as Server {
   component "Go 内核\n鉴权 / Library / 事务 / Gateway" as SCore
   component "Server Plugin Host" as SHost
+  component "Storage Backend\n原子业务操作 / 文件保护协调" as Storage
   SCore --> SHost : 受授权任务 / 生命周期
+  SCore --> Storage : 领域 Repository / 事务契约
 }
 
 rectangle "Server 独立插件进程\n按角色 / 任务受管" as Workers {
   component "Provider / Scraper / Audio\n已有 Go 插件保留\nC++ 插件：CMake / C++23 可执行程序" as Worker
+  component "独立 DSP 节点\n无状态 / 零延迟 / 固定 PCM" as DSP
+  component "可信持久化 Worker\n完整 Backend / Maintenance\nSQLite：必需，不可禁用" as DBWorker
+  Worker <--> DSP : 版本化二进制 PCM
 }
 
 Core --> SCore : 版本化 HTTP / 能力 / 播放协商
 SCore --> Audio : 授权音频流 / 固定表示
 SHost <--> Worker : JSON-RPC / stdio 控制\n任务授权二进制数据通道
+Storage <--> DBWorker : 业务操作 RPC / 受控嵌套回调\n可静态校验的便携快照
 
 note bottom of Client
   不使用插件 Worker 或独立音频引擎进程。
