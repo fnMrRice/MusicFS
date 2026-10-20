@@ -33,6 +33,8 @@ Server 来源插件 ID 统一为 `musicfs.plugin.source.xxx`，解码与音频�
 
 Server 插件和实例停用只保存配置，重启 Server 后生效；当前 Worker、任务、播放及新工作准入保持。启用和实例设置仍可动态应用。管理快照及操作的 `restartRequired` 与实例 `RESTART_REQUIRED` 原因区分保存意图和运行状态；待重启时 `effectiveEnabled` 按当前运行开关计算，`appliedRevision` 不推进至新修订。旧 `mode=drain/force` 仅兼容接受，不再排空或取消。客户端不得凭保存开关或操作 succeeded 宣称已经停用，见[Server 插件管理](../server/docs/implementation/plugin-management.md)。
 
+Web 插件管理按插件显示名称、ID 和实际已知版本，各插件以横线分隔，展开后查看独立实例及状态；刷新按钮在“插件状态”标题右侧。登录插件的每个实例属于一个 MusicFS 用户，并独立承载一个平台账号；同一用户的不同平台账号也使用不同 UUID 实例。管理员默认查看自己的在线实例与共享实例，可勾选“显示所有用户实例”查看全部归属；此项只扩大管理员管理视图，不扩大平台账号的业务访问权限。具体管理字段、部署归属配置及兼容范围由 [Server 插件管理](../server/docs/implementation/plugin-management.md)维护。现有 MusicFS 登录入口仍仅创建管理员会话，实例归属能力不代表已交付一般用户注册与账号管理。
+
 ### 1.1 插件化决策与执行边界
 
 2026-10-20 服务端增量：DSP 通过有序节点链和独立 Worker 扩展，首版限制无状态、固定格式/帧数、零延迟和无尾音；持久化通过受信任 Backend 契约替换，提供默认 SQLite 与独立 SQLite Worker。SQLite 属于必需存储后端，不能被禁用，不进入普通插件启停列表。Schema/迁移版本、事务语义和文件发布协调仍归 Server，后端执行原子操作与快照。两项为启动配置，公共播放描述报告实际 DSP 链并按链身份隔离缓存/恢复；旧 Web 可继续忽略新增可选节点参数。具体已实现范围见 [DSP 插件](../server/docs/dsp-plugins.md)和[存储插件](../server/docs/storage-plugins.md)。
