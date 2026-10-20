@@ -1,27 +1,31 @@
 @startuml
-title MusicFS Server 与在线插件模块边界
+title MusicFS 默认统一插件交付与源码模块边界
 skinparam componentStyle rectangle
 
 package "Server 仓库（私有）" {
   component "Server 宿主\nHTTP / 账号归属 / 库 / 任务" as host
   component "独立 Go SDK\n协议 / DTO / 校验 / Provider Worker" as sdk
+  component "musicfs-plugins 默认统一程序\nplugins/unified / --plugin 角色选择" as bundle
+  component "本地源 / 解码 / 刮削\nSQLite / DSP 实现" as local
   package "独立在线插件 Go 模块" {
-    component "网易云程序" as netease
-    component "QQ 音乐程序" as qq
-    component "Apple Music 程序" as apple
-    component "online/unified 统一程序\n--plugin 平台选择" as unified
+    component "可选网易云程序" as netease
+    component "可选 QQ 音乐程序" as qq
+    component "可选 Apple Music 程序" as apple
+    component "在线装配包\nonline/unified" as unified
+    component "可选在线统一程序\nmusicfs-plugin-online" as onlinecmd
   }
 }
 
 host ..> sdk : 编译依赖
+bundle ..> sdk : 编译依赖
+bundle ..> local : 装配
+bundle ..> unified : 复用在线装配
 netease ..> sdk : 编译依赖
 qq ..> sdk : 编译依赖
 apple ..> sdk : 编译依赖
 unified ..> sdk : 编译依赖
-host <--> netease : JSON-RPC / stdio
-host <--> qq : JSON-RPC / stdio
-host <--> apple : JSON-RPC / stdio
-host <--> unified : JSON-RPC / stdio\n每实例一个进程
+onlinecmd ..> unified : 装配
+host <--> bundle : 角色专用协议 / stdio\n每实例一个进程
 
 note bottom of sdk
   无 Server 实现或平台 HTTP 依赖
@@ -29,6 +33,10 @@ note bottom of sdk
 end note
 note bottom of host
   生产依赖不含在线适配器
-  测试可组合真实插件实现
+  默认仅 Server + 一个插件文件
+end note
+note bottom of bundle
+  九种角色启动前固定
+  独立程序仍可显式构建
 end note
 @enduml

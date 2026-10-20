@@ -25,7 +25,7 @@ Server 在自身 `docs/contracts` 维护 OpenAPI、事件 Schema 和带版本的
 
 当前 Server / 插件 / 最小 Web 的交付顺序与联合验收见[分阶段实施总览](implementation.md)。本文保持长期契约，具体模块和实现步骤由对应仓库维护。
 
-Server 的 Go 插件协议与公共模型整理为独立 SDK 模块，仍由 Server 仓库维护；在线平台实现位于独立插件模块，网易云、QQ 音乐、Apple Music 提供独立程序，并有 `online/unified` 统一装配入口，宿主生产代码只依赖 SDK。插件实现按音乐源、数据库、解码、刮削、DSP 分类。Local Files、FFmpeg、NCM、本地 Scraper 保持统一程序、按角色独立启动进程；SQLite 和 DSP 使用各自入口。模块、发布兼容与旧配置迁移见 [Server SDK](../server/docs/plugin-sdk.md)，依赖关系见 [模块图](diagrams/server-plugin-sdk.puml)。自动发现、显式禁用和待配置状态见 [Server 配置](../server/docs/configuration.md#内置插件程序与自动发现)，界面不得将 `pending_configuration` 显示为已就绪。
+Server 的 Go 插件协议与公共模型整理为独立 SDK 模块，仍由 Server 仓库维护；在线平台实现位于独立插件模块，Server 宿主不编入平台实现。插件源码按音乐源、数据库、解码、刮削、DSP 分类，默认由 `plugins/unified` 装配为一个 `musicfs-plugins` 程序，与 Server 一同构成两个交付文件。九种插件角色通过 `--plugin` 选择，各实例独立启动进程；SQLite 和 DSP 保持专用协议与配置。单平台和单用途入口保留为可选分拆构建。模块、发布兼容与旧配置迁移见 [Server SDK](../server/docs/plugin-sdk.md)，依赖关系见 [模块图](diagrams/server-plugin-sdk.puml)。自动发现、显式禁用和待配置状态见 [Server 配置](../server/docs/configuration.md#内置插件程序与自动发现)，界面不得将 `pending_configuration` 显示为已就绪。
 
 Server 部署配置不指定实例 `role`；角色来自插件握手的 `Manifest.roles`，宿主校验后使用。名称与译名同样由插件声明，实例配置的可选 `name` 只表示管理员别名，示例与自动发现不预填名称。管理 API 的角色字段保持兼容。
 
