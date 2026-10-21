@@ -19,7 +19,7 @@ rectangle "Client：单一原生宿主进程" as Client {
 rectangle "Server 核心进程" as Server {
   component "Go 内核\n鉴权 / Library / 事务 / Gateway" as SCore
   component "Server Plugin Host" as SHost
-  component "Storage Backend\n原子业务操作 / 文件保护协调" as Storage
+  component "Storage Backend\n业务契约 / 选择 / 文件保护协调" as Storage
   SCore --> SHost : 受授权任务 / 生命周期
   SCore --> Storage : 领域 Repository / 事务契约
 }
@@ -27,7 +27,7 @@ rectangle "Server 核心进程" as Server {
 rectangle "Server 独立插件进程\n按角色 / 任务受管" as Workers {
   component "Provider / Scraper / Audio\n已有 Go 插件保留\nC++ 插件：CMake / C++23 可执行程序" as Worker
   component "独立 DSP 节点\n无状态 / 零延迟 / 固定 PCM" as DSP
-  component "可信持久化 Worker\n完整 Backend / Maintenance\nSQLite：必需，不可禁用" as DBWorker
+  component "可信持久化 Worker\nBackend / Maintenance / 实例状态\n建库 / Schema / 迁移\nSQLite：必需，不可禁用" as DBWorker
   Worker <--> DSP : 版本化二进制 PCM
 }
 
@@ -44,6 +44,8 @@ note bottom of Client
 end note
 
 note bottom of Workers
+  数据库初始化成功后才返回可用后端。
+  配置预加载只读，宿主持锁后才允许写入初始化。
   进程隔离不等于 OS 权限沙箱。
   新角色 / 资源通道需先扩展 Server 契约。
   两端可复用算法源码，不保证共用二进制。
