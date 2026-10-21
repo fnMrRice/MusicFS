@@ -27,6 +27,8 @@ Server 在自身 `docs/contracts` 维护 OpenAPI、事件 Schema 和带版本的
 
 内部文档使用相对链接，跨仓库链接依赖根目录下递归检出 `server/`、`client/`、`web/` 三个 Git 子模块的工作区布局；主仓库记录各子模块的提交版本。
 
+Server 使用结构化日志，默认等级为 `info`，支持 `trace/debug/info/warn/error` 与按插件覆盖。宿主和各插件分别保存日志文件，同插件多实例通过实例标识区分；旧日志按天或大小轮转、压缩，保留 30 天。管理员可通过新增日志等级接口临时调整当前进程的等级，重启后恢复部署配置；该接口不改变既有客户端协议，也不代表 Web 已提供日志设置界面。具体目录、运行时修改及敏感字段限制见 [Server 日志](../server/docs/operations/logging.md)。
+
 当前 Server / 插件 / 最小 Web 的交付顺序与联合验收见[分阶段实施总览](implementation.md)。本文保持长期契约，具体模块和实现步骤由对应仓库维护。
 
 Server 的 Go 插件协议与公共模型为独立 SDK 模块，仍由 Server 仓库维护；在线平台实现保留独立 Go 模块，并编入 Server 的官方内置装配。音乐源、数据库、解码、刮削、DSP 和媒体算法插件都在 Server 主进程运行，各实例保持独立配置、账号状态、上下文和通信边界。默认运行不需要插件可执行文件；`musicfs-plugins`、单平台和单用途入口只用于显式选择 `execution: process` 的外部进程兼容模式，不自动为内置插件派生进程。FFmpeg、ffprobe、fpcalc 等受控工具仍可按任务启动外部程序。模块、发布兼容与旧配置迁移见 [Server SDK](../server/docs/plugins/plugin-sdk.md)，依赖关系见 [模块图](diagrams/server-plugin-sdk.puml)。默认装配、显式禁用和待配置状态见 [Server 配置](../server/docs/operations/configuration.md)，界面不得将 `pending_configuration` 显示为已就绪。
