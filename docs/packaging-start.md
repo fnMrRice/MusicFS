@@ -13,7 +13,7 @@
 
 ## 加入音乐
 
-安装包示例在插件和实例两层显式设置 `enabled: true`，配置齐全后启动；缺少音乐目录或工具路径时显示 `pending_configuration`，页面仍可打开。已有配置会保留：显式列出的插件或实例省略 `enabled` 与设为 `false` 都表示禁用。若本地音乐显示禁用，在「设置 → 插件管理」启用插件及其实例，再添加目录和扫描；只删除开关字段不会启用。
+安装包示例在插件和实例两层显式设置 `enabled: true`，配置齐全后启动；缺少音乐目录或工具路径时显示 `pending_configuration`，页面仍可打开。已有配置会保留：显式列出的插件或实例省略 `enabled` 与设为 `false` 都表示禁用。若「设置 → 插件管理」显示本地音乐禁用，停止服务，在 `configs/server.yaml` 中将插件及其实例两层开关设为 `enabled: true`，再启动、添加目录和扫描；只删除开关字段不会启用。
 
 本地音乐目录使用以下流程：
 
@@ -30,8 +30,18 @@ $env:MUSICFS_ADMIN_TOKEN = (Get-Content ./configs/admin-token.txt -Raw).Trim()
 
 示例使用随包本地音乐实例的 UUID；如果更换过实例，使用实际实例 ID。若启动时使用了外部环境变量，在扫描终端使用该值。Linux 可以用 PowerShell 7 运行 `scripts/scan.ps1`，或通过管理 API 发起扫描。参数和 API 用法见源码仓库的 [运行说明](https://github.com/fnMrRice/MusicFS-server/blob/main/docs/operations/running.md)；本地目录管理以较新的[插件配置说明](https://github.com/fnMrRice/MusicFS-server/blob/main/docs/plugins/plugin-configuration.md)为准。
 
+## 合并歌曲与重复识别
+
+在「曲目列表」勾选两首或更多歌曲，点击「合并歌曲」并确认，即可把它们关联到同一首歌曲。合并后展开「n 个来源版本」查看各个来源，也可以单独播放或解除关联。合并与解除只改变曲库中的关联，不移动、删除或改写音乐文件；这些操作由 Server 提供，不依赖重复识别插件。
+
+在「设置 → 插件管理」展开标准重复识别插件，可调整自动识别开关、最低匹配分数，或点击「立即识别」。先保存修改，再执行识别。自动识别会在曲库变化后运行；在「曲目列表 → 重复识别」查看候选，确认合并或标记「不是同一录音」。插件只提出候选，不自动合并。设置页由插件声明，Web 通用展示输入框、数字框、开关、选择框和操作按钮。
+
 ## 音频与其他配置
 
-普通兼容格式可用原流播放。本地 NCM 由随包插件处理；需要转码/DSP 或当前 NCM FLAC 播放路径时，另行安装 FFmpeg/ffprobe，并填写 `musicfs.plugin.decoder.ffmpeg` 实例的 `config.ffmpegPath` 和 `config.ffprobePath`。这两个外部工具不包含在包中。NCM 和本地歌词/封面插件无需 FFmpeg 即可启动，具体媒体操作仍取决于格式和工具配置。
+点击曲目名称旁的播放图标或曲目名称即可播放，底部播放器控制暂停与进度。「播放全部」需等完整列表读取结束才可用。
+
+当前原流路径支持兼容 WAV 及已识别容器、编码的 MP3；FLAC 等格式走 FFmpeg 处理。首次扫描未配置 ffprobe 时，MP3 也可能缺少格式信息而无法进入原流路径。先安装 FFmpeg/ffprobe，在 `configs/server.yaml` 的 `musicfs.plugin.decoder.ffmpeg` 实例中填写 `config.ffmpegPath` 和 `config.ffprobePath`，并确认插件与实例两层均为 `enabled: true`。这两个外部工具不包含在包中。重启后手动扫描一次以补齐格式和时长信息。
+
+本地 NCM 还需要启用 `musicfs.plugin.decoder.ncm` 插件及其实例；内部 MP3 可解密播放，内部 FLAC 需要 FFmpeg 处理。NCM 和本地歌词/封面插件无需 FFmpeg 即可启动，具体媒体操作仍取决于格式和工具配置。可在「设置 → 插件管理」查看插件是否可用。
 
 `webRoot` 已指向 `../web`，插件程序指向 `../bin`，无需另外运行 Web 服务。如端口被占用，修改 `listen` 和 `allowedOrigins`，然后打开新地址。安装包不含 `docs/`，其他说明见源码仓库的 [配置说明](https://github.com/fnMrRice/MusicFS-server/blob/main/docs/operations/configuration.md)、[NCM 说明](https://github.com/fnMrRice/MusicFS-server/blob/main/docs/playback/ncm.md)和[部署说明](https://github.com/fnMrRice/MusicFS-server/blob/main/docs/operations/deployment.md)。远程访问需配置 TLS；默认启动脚本面向本机运行。

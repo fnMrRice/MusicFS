@@ -111,6 +111,12 @@ NAS 与 B 站音频统一进入 SourceTrack/SourceAsset、播放协商与恢复�
 
 Server 返回的资产信息可包含 codec、container、durationMs、bitrateBps、bitrateMode、fileSizeBytes、fileSha512 及探测状态。未知值为 null；码率单位 bit/s；已校验的完整文件 SHA-512 在协议中表示为 128 个小写十六进制字符。Provider 申报值与 Server 计算值区分展示，未知摘要不阻止播放。文件不同、码率不同或摘要不同不直接等同于不同 Recording；人工关联与禁止关联优先于自动建议。具体探测、摘要、指纹提取及证据管理见 [Server 内部架构](../server/docs/architecture.md)。
 
+重复识别与人工关联分开：识别规则、评分和对应设置声明由匹配插件提供；后台执行、权限检查、候选发布和持久化由 Server 管理。插件仅提出待确认候选，不能自行合并 Recording。人工关联、解除和排除属于 Server 自身能力，即使自动识别关闭，用户仍可在曲目列表勾选歌曲并点击「合并歌曲」。关联只改变 MusicFS 中的逻辑关系，保留每个来源与原文件。
+
+Web 曲目列表由 Server 在分页前按用户确认的 Recording 分组，未关联曲目仍独立显示。多版本歌曲可展开查看各来源、格式和时长，并分别播放或解除关联；同名、相似时长或候选评分不会直接改变分组。分页同时绑定曲库与人工关联修订，避免跨页遗漏来源或拼接变更前后的分组。播放和歌单操作仍引用具体 SourceTrack。
+
+插件可提供声明式设置页面：包括文字输入、数值输入、开关、下拉选择和操作按钮，由 Server 校验声明与参数，Web 统一渲染。设置和动作按插件声明分派，插件页面不承担人工关联业务，也不直接执行任意网页脚本或请求地址。具体字段、兼容规则与支持插件以 Server 的 SDK 和 OpenAPI 为准，见[插件设置](../server/docs/plugins/settings.md)、[重复识别](../server/docs/library/duplicate-detection.md)及[录音聚合曲库](../server/docs/library/recording-groups.md)。
+
 NCM 的 SourceAsset 仍标识原始加密容器，文件大小、摘要与版本属于原文件；解密出的 MP3/FLAC 是独立播放表示，不覆盖源资产。解密表示使用自己的长度、验证器与 representationId；客户端的 Range 面向该表示，不能沿用加密文件的字节偏移。
 
 ## 4. API 与事件草案
