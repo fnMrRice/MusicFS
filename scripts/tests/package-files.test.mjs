@@ -106,6 +106,23 @@ test('two builds replace managed files and preserve all runtime files', t => {
   });
 });
 
+test('a fingerprint reference move updates old installations without touching nearby files', t => {
+  const { output, stage } = fixture(t);
+  const previous = 'src/identification/fingerprint/REFERENCES.md';
+  const current = 'src/metadata/identification/fingerprint/REFERENCES.md';
+  publish(stage('one', 'windows', { [previous]: 'Previous algorithm references' }), output);
+  const notes = path.join(output, 'src/identification/fingerprint/notes.txt');
+  write(notes, 'Personal notes');
+  publish(stage('two', 'windows', { [current]: 'Current algorithm references' }), output);
+  const entries = verifyManifest(output);
+  assert.equal(entries.has(previous), false);
+  assert.equal(entries.has(current), true);
+  assert.equal(fs.existsSync(path.join(output, previous)), false);
+  assert.equal(fs.readFileSync(path.join(output, current), 'utf8'), 'Current algorithm references');
+  assert.equal(fs.readFileSync(notes, 'utf8'), 'Personal notes');
+  assert.equal(fs.existsSync(path.join(output, '.incomplete')), false);
+});
+
 test('a case-only asset rename preserves the new file and removes distinct old files', t => {
   const { output, stage } = fixture(t);
   publish(stage('one', 'windows', { 'web/Logo.svg': 'Old logo' }), output);

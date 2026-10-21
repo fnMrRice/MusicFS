@@ -8,7 +8,9 @@ const documents = new Set([
   'web-source.json', 'start.bat', 'start.sh', 'configs/server.example.yaml',
   'configs/server.schema.json', 'scripts/scan.ps1', 'deploy/Dockerfile',
   'deploy/compose.example.yaml', 'deploy/server.container.example.yaml',
-  'deploy/nginx.example.conf', 'src/identification/fingerprint/REFERENCES.md',
+  'deploy/nginx.example.conf', 'src/metadata/identification/fingerprint/REFERENCES.md',
+  // Retain the previous path so an upgrade can validate and remove old managed files.
+  'src/identification/fingerprint/REFERENCES.md',
 ]);
 const hash = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 
