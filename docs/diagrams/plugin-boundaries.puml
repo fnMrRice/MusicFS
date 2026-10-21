@@ -21,7 +21,7 @@ rectangle "Server 主进程：所有官方内置插件" as Server {
   component "Server Plugin Host" as SHost
   component "Storage Backend\n业务契约 / 选择 / 文件保护协调" as Storage
   component "内置来源 / Scraper / Audio\n每实例或任务独立上下文\n账号与权限边界保留" as Builtin
-  component "内置 DSP gain\n无状态 / 固定 PCM / 零延迟" as DSP
+  component "内置 DSP gain / EQ / 压缩 / 混响\n固定布局 / 有状态重建 / 零算法延迟" as DSP
   component "内置 SQLite\n主库 / 实例状态 / Schema / 迁移" as DB
   component "内置分析 / 标签 / 评分 / 变换\nChromaprint / FLAC / 标准评分 / 缩略图" as Algorithms
   SCore --> SHost : 受授权任务 / 生命周期

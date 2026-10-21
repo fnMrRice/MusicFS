@@ -1,0 +1,26 @@
+@startuml
+title Server 声道转换与 DSP 的执行顺序
+left to right direction
+skinparam componentStyle rectangle
+component "授权输入\nmono / stereo / 5.1 / 7.1" as Source
+component "FFmpeg 解码\n48 kHz float32 / 保留源声道布局" as Decode
+component "声道转换插件\nmusicfs.plugin.decoder.channelmix\n目标 stereo / 5.1 / 7.1" as Channels
+component "用户增益 → 配置 DSP 链\nEQ / 压缩器 / 混响\n按最终声道布局处理" as DSP
+component "编码与封装\nstereo: MP3\n5.1 / 7.1: Opus / WebM" as Encode
+component "鉴权交付与终端\n按实际格式协商" as Client
+Source --> Decode
+Decode --> Channels
+Channels --> DSP
+DSP --> Encode
+Encode --> Client
+note bottom of DSP
+有状态定位：从曲首重建状态，
+处理后裁切至目标帧，再编码。
+不追加曲尾；不保留旧 Range。
+end note
+note bottom of Channels
+下混按声道标签及固定矩阵；
+上混保留已有声道，空位补静音。
+不把双声道扩展称为真实环绕声还原。
+end note
+@enduml
