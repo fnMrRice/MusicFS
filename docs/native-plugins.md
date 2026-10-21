@@ -109,7 +109,7 @@ Client 新版本保存到独立目录，更新/回滚统一在下次启动切换
 
 启动故障记录只保存必要的包/版本/阶段，不假定最近加载的插件必然是崩溃原因。重复启动失败提供禁用非必需用户原生插件的恢复入口；重新启用逐项执行。恢复入口能处理下次启动，并非本次进程中的崩溃隔离。
 
-Server 保持自身[插件管理契约](../server/docs/implementation/plugin-management.md)，配置重建、任务取消和退出时收尾数据通道及插件进程，不采用 Client 的库句柄生命周期。C++ Worker 的 stdout 仅输出协议帧，英文日志写 stderr；控制面不用 C ABI 内存布局、指针、JSON/Base64 音频或自定义未经协商的 RPC。
+Server 保持自身[插件管理契约](../server/docs/plugins/plugin-management.md)，配置重建、任务取消和退出时收尾数据通道及插件进程，不采用 Client 的库句柄生命周期。C++ Worker 的 stdout 仅输出协议帧，英文日志写 stderr；控制面不用 C ABI 内存布局、指针、JSON/Base64 音频或自定义未经协商的 RPC。
 
 ## 6. 支持矩阵与交付证据
 

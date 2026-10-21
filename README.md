@@ -2,11 +2,11 @@
 
 可自托管的音乐聚合系统，通过 Music Provider 统一管理本地音乐文件、挂载 NAS 与在线来源，提供音乐库、聚合歌单和播放；通过独立 Scraper 插件提供歌词/封面等信息的自动与手动刮削。
 
-当前阶段：Go Server、Local Files/音频插件和最简 Web 已有本地播放实现，支持真实列表、授权原流、服务端处理播放和独立 NCM 解密插件。启动见[Server 运行说明](server/docs/running.md)，验证范围见[实施记录](server/docs/validation/progress.md)。本仓库仍只维护跨端架构与共同文档；程序和各步骤提交分别保存在独立 Server/Web 仓库，在线平台等长期设计尚未实现。
+Go Server 已提供本地扫描、授权原流、服务端处理播放、NCM、资料补全及歌单接口。启动见[Server 运行说明](server/docs/operations/running.md)，使用与能力边界见[文档导航](server/docs/README.md)，剩余验证见[待验收清单](server/docs/validation/README.md)。平台登录接口已接入，真实账号仍待验收，在线整曲交付尚未实现。本仓库维护跨端架构与共同文档，具体实现分别保存在 Server、Client、Web 仓库。
 
-NCM 插件已接入本地扫描与播放，支持提取容器内的 MP3/FLAC；配置、限制和[手工验证步骤](server/docs/ncm.md#5-手工验证)集中在 [NCM 插件说明](server/docs/ncm.md)。独立 Worker、Server 回归和三项 Edge 联调已通过，证据见 [Web NCM 验证](web/docs/ncm-validation.md)；真实下载的 NCM 变体尚未验收。
+NCM 插件接入本地扫描与播放，支持提取容器内的 MP3/FLAC；配置及限制见[NCM 说明](server/docs/playback/ncm.md)，操作见[运行说明](server/docs/operations/running.md)，验证方法见[复验指南](server/docs/validation/verification.md)。格式变体与实际输出设备仍按待验范围分别验证。
 
-Server 使用[版本化 YAML 配置](server/docs/configuration.md)，支持插件动态启停、能力变更通知和配置修订检查；Local Files 目录配置通过管理接口持久化，YAML 限定访问权限。内置插件统一分发并按角色独立启动，缺少必要配置时显示待配置；见[插件配置](server/docs/plugin-configuration.md)与[插件分发验证](server/docs/validation/plugin-bundle.md)。
+Server 使用[版本化 YAML 配置](server/docs/operations/configuration.md)，支持插件动态启用、能力变更通知和修订检查；停用保存后重启生效。Local Files 目录通过管理接口持久化，YAML 限定权限。内置插件统一分发并按角色独立启动，缺少必要配置时显示待配置，见[插件配置](server/docs/plugins/plugin-configuration.md)。
 
 ## 本地打包与启动
 
@@ -14,11 +14,11 @@ Server 使用[版本化 YAML 配置](server/docs/configuration.md)，支持插�
 
 ## 实现计划
 
-新增 [NFS/SMB NAS 插件设计](server/docs/nas-providers.md)与 [Bilibili 音频插件设计](server/docs/bilibili-provider.md)：B 站匿名访问优先，以收藏夹为主要歌单来源，并补充音频区独立歌单。当前仅完成设计与[增量实施计划](server/docs/implementation/nas-bilibili.md)，尚未实现；开源候选及采用边界见[参考记录](server/docs/provider-references.md)。
+新增 [NFS/SMB NAS 插件设计](server/docs/design/nas-providers.md)与 [Bilibili 音频插件设计](server/docs/design/bilibili-provider.md)：B 站匿名访问优先，以收藏夹为主要歌单来源，并补充音频区独立歌单。当前仅完成设计与[增量实施计划](server/docs/design/nas-bilibili.md)，尚未实现；开源候选及采用边界见[参考记录](server/docs/design/nas-bilibili.md#候选依赖)。
 
 - [联合实施总览](docs/implementation.md)：P0—P8 顺序、共同 API 与验收场景。
-- [Server 分阶段实施](server/docs/implementation.md)：工程基础、音乐库、原流与处理后播放、匹配、刮削、在线来源及交付。
-- [Server 插件实施](server/docs/implementation/plugins.md)：Local Files、音频处理、独立 Scraper 和平台 Provider。
+- [文档导航](server/docs/README.md)：工程基础、音乐库、原流与处理后播放、匹配、刮削、在线来源及交付。
+- [Server 插件实施](server/docs/plugins/plugin-architecture.md)：Local Files、音频处理、独立 Scraper 和平台 Provider。
 - [最小 Web 实施](web/docs/implementation.md)：真实列表、登录、播放控件、定位与浏览器验收。
 - [桌面 React + Tauri 实施](client/docs/implementation.md)：Rust 原生播放、可安装插件、界面复用、三平台交付与 C0—C7 验收；尚未实现。
 
@@ -36,7 +36,7 @@ Server 使用[版本化 YAML 配置](server/docs/configuration.md)，支持插�
 - [跨端组件图](docs/diagrams/components.puml)
 - [播放与来源回退](docs/diagrams/playback.puml)
 - [Windows 启动与退出流程](docs/diagrams/windows-launch.puml)
-- [Server 内部架构](server/docs/architecture.md)与[音频处理](server/docs/audio-processing.md)
+- [Server 内部架构](server/docs/architecture.md)与[音频处理](server/docs/playback/audio-processing.md)
 - [Client 内部架构](client/docs/architecture.md)与[音频及插件](client/docs/audio-processing.md)
 - [Web 设计](web/docs/design.md)
 - [客户端线框](client/docs/prototypes/client.salt.puml)
@@ -79,7 +79,7 @@ git submodule update --init --recursive
 
 ## 开源项目参考
 
-在线平台插件计划参考下列项目；完整用途、许可证、核查日期和采用记录要求见 [Server README](server/README.md#开源项目参考)。目前仅作参考，尚未引入代码或验证平台播放能力。
+在线平台插件计划参考下列项目；完整用途、许可证、核查日期和采用记录要求见 [Server README](server/README.md)。目前仅作参考，尚未引入代码或验证平台播放能力。
 
 | 平台 | 参考项目 |
 | --- | --- |
@@ -87,4 +87,4 @@ git submodule update --init --recursive
 | QQ 音乐 | [jsososo/QQMusicApi](https://github.com/jsososo/QQMusicApi) |
 | Apple Music | [zachomedia/apple-music-webplayer](https://github.com/zachomedia/apple-music-webplayer)，MusicKit 浏览器集成示例 |
 
-本地 NCM 解密另参考 MIT 项目 ncmdump-go 和 ncmdump.rs 的格式布局，以 Go 标准库重写。项目、许可证链接及采用范围见 [Server README 的 NCM 参考](server/README.md#本地-ncm-解密参考)；这些格式参考没有成为运行依赖。
+本地 NCM 解密另参考 MIT 项目 ncmdump-go 和 ncmdump.rs 的格式布局，以 Go 标准库重写。项目、许可证链接及采用范围见 [Server README 的 NCM 参考](server/README.md)；这些格式参考没有成为运行依赖。

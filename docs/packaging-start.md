@@ -18,7 +18,7 @@
 本地音乐目录使用以下流程：
 
 1. 默认允许当前 Server 运行用户的 Music 目录；Windows 首次启动还会检查各磁盘根目录下的常见音乐下载目录。「设置 → 插件管理」的本地音乐摘要显示“n 个允许访问的目录”，初次没有已添加的音乐目录。若需调整允许范围，停止服务并编辑 `configs/server.yaml` 中 `musicfs.plugin.source.localfiles` 的唯一实例，设置 `permissions.readDirectories`，例如 `['D:/Music']`，再重启生效；实例 ID 为 UUID，相对路径以配置文件所在目录为基准。
-2. 使用管理员账号打开 Web「设置 → 音乐源」，点击「本地音乐」标题右侧的「添加本地目录」。弹窗目录树只能展开并选择允许访问的根或子目录；已添加目录显示在标题下方，每行右侧用减号删除、用编辑修改该目录的名称与查找设置。递归启用时默认不限深度；「高级选项」内勾选「限制递归深度」后可编辑数字，未限制或填 0 表示全部递归。默认跳过点开头及 Windows 隐藏项，并遵循 .nomedia 跳过标记所在目录及子树。保存到 Server 数据库，不回写 YAML，也不会自动扫描；删除目录配置不删除文件或撤销访问授权。也可使用管理员目录浏览与配置 API，完整示例见源码仓库的 [插件配置说明](https://github.com/fnMrRice/MusicFS-server/blob/main/docs/plugin-configuration.md)。
+2. 使用管理员账号打开 Web「设置 → 音乐源」，点击「本地音乐」标题右侧的「添加本地目录」。弹窗目录树只能展开并选择允许访问的根或子目录；已添加目录显示在标题下方，每行右侧用减号删除、用编辑修改该目录的名称与查找设置。递归启用时默认不限深度；「高级选项」内勾选「限制递归深度」后可编辑数字，未限制或填 0 表示全部递归。默认跳过点开头及 Windows 隐藏项，并遵循 .nomedia 跳过标记所在目录及子树。保存到 Server 数据库，不回写 YAML，也不会自动扫描；删除目录配置不删除文件或撤销访问授权。也可使用管理员目录浏览与配置 API，完整示例见源码仓库的 [插件配置说明](https://github.com/fnMrRice/MusicFS-server/blob/main/docs/plugins/plugin-configuration.md)。
 3. 等待配置操作完成后，在另一个终端进入安装目录，使用同一管理员令牌运行包内扫描脚本。扫描成功后刷新 Web 曲目列表。
 
 Windows 扫描示例（启动时未使用外部环境变量令牌）：
@@ -28,10 +28,10 @@ $env:MUSICFS_ADMIN_TOKEN = (Get-Content ./configs/admin-token.txt -Raw).Trim()
 ./scripts/scan.ps1 -ProviderID local
 ```
 
-若启动时使用了外部环境变量，在扫描终端使用该值。Linux 可以用 PowerShell 7 运行 `scripts/scan.ps1`，或通过管理 API 发起扫描。参数和 API 用法见源码仓库的 [运行说明](https://github.com/fnMrRice/MusicFS-server/blob/main/docs/running.md)；本地目录管理以较新的[插件配置说明](https://github.com/fnMrRice/MusicFS-server/blob/main/docs/plugin-configuration.md)为准。
+若启动时使用了外部环境变量，在扫描终端使用该值。Linux 可以用 PowerShell 7 运行 `scripts/scan.ps1`，或通过管理 API 发起扫描。参数和 API 用法见源码仓库的 [运行说明](https://github.com/fnMrRice/MusicFS-server/blob/main/docs/operations/running.md)；本地目录管理以较新的[插件配置说明](https://github.com/fnMrRice/MusicFS-server/blob/main/docs/plugins/plugin-configuration.md)为准。
 
 ## 音频与其他配置
 
 普通兼容格式可用原流播放。本地 NCM 由随包插件处理；需要转码/DSP 或当前 NCM FLAC 播放路径时，另行安装 FFmpeg/ffprobe，并填写 `musicfs.plugin.decoder.ffmpeg` 实例的 `config.ffmpegPath` 和 `config.ffprobePath`。这两个外部工具不包含在包中。NCM 和本地歌词/封面插件无需 FFmpeg 即可启动，具体媒体操作仍取决于格式和工具配置。
 
-`webRoot` 已指向 `../web`，插件程序指向 `../bin`，无需另外运行 Web 服务。如端口被占用，修改 `listen` 和 `allowedOrigins`，然后打开新地址。安装包不含 `docs/`，其他说明见源码仓库的 [配置说明](https://github.com/fnMrRice/MusicFS-server/blob/main/docs/configuration.md)、[NCM 说明](https://github.com/fnMrRice/MusicFS-server/blob/main/docs/ncm.md)和[部署说明](https://github.com/fnMrRice/MusicFS-server/blob/main/docs/deployment.md)。远程访问需配置 TLS；默认启动脚本面向本机运行。
+`webRoot` 已指向 `../web`，插件程序指向 `../bin`，无需另外运行 Web 服务。如端口被占用，修改 `listen` 和 `allowedOrigins`，然后打开新地址。安装包不含 `docs/`，其他说明见源码仓库的 [配置说明](https://github.com/fnMrRice/MusicFS-server/blob/main/docs/operations/configuration.md)、[NCM 说明](https://github.com/fnMrRice/MusicFS-server/blob/main/docs/playback/ncm.md)和[部署说明](https://github.com/fnMrRice/MusicFS-server/blob/main/docs/operations/deployment.md)。远程访问需配置 TLS；默认启动脚本面向本机运行。

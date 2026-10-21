@@ -1,12 +1,12 @@
 # MusicFS 分阶段实施总览
 
-平台账号增量已接入 Server / Worker / Web，三个在线源统一要求平台登录，网易云查询迁移至带会话的 EAPI、QQ 搜索迁移至桌面 RPC；网易云、QQ 二维码创建实测通过，完整用户授权与 Apple 实号登录待验收，详见[平台登录说明](../server/docs/platform-login.md)。下文原阶段交付状态不包含此待验收增量。
+平台账号增量已接入 Server / Worker / Web，三个在线源统一要求平台登录，网易云查询迁移至带会话的 EAPI、QQ 搜索迁移至桌面 RPC；网易云、QQ 二维码创建实测通过，完整用户授权与 Apple 实号登录待验收，详见[平台登录说明](../server/docs/providers/platform-login.md)。下文原阶段交付状态不包含此待验收增量。
 
-状态：2026-10-10，本地文件/NCM与最简Web播放已有实现，Server已继续完成P5识别、P6媒体与受限写回，以及P7匿名资料、推荐、远程/个人歌单和人工时间对齐恢复。P8备份、安装制品与生命周期按步骤验收；每步提交、通过项和剩余环境验证见 [Server 实施记录](../server/docs/validation/progress.md)与 [Web 兼容记录](../web/docs/compatibility.md)。桌面Client、动态插件启停、平台账号和完整在线音频仍不属于已交付能力。
+Server 当前范围包括本地/NCM 播放、识别、媒体与受限写回、账号资料接口、推荐、歌单及人工时间对齐恢复，以及备份、安装和生命周期协议。专题说明见[文档导航](../server/docs/README.md)，剩余验证见[待验收清单](../server/docs/validation/README.md)与[Web 兼容记录](../web/docs/compatibility.md)。平台真实账号仍待验收，完整在线音频尚未实现；下文阶段编号仅用于说明交付依赖。
 
-后续授权的本地 NCM 插件已完成独立解密、扫描及最简 Web 接入，沿用既有鉴权与播放协议；参考来源、配置和验收边界见 [NCM 插件说明](../server/docs/ncm.md)。该增量不代表网易云在线 Provider 或账号功能已经实现。
+后续授权的本地 NCM 插件已完成独立解密、扫描及最简 Web 接入，沿用既有鉴权与播放协议；参考来源、配置和验收边界见 [NCM 插件说明](../server/docs/playback/ncm.md)。该增量不代表网易云在线 Provider 或账号功能已经实现。
 
-后续[YAML配置层与读写服务](../server/docs/configuration.md)已落地，旧JSON配置不兼容；严格校验、修订保存与崩溃恢复见[配置验收](../server/docs/validation/configuration.md)。该范围不包含插件动态启停或新的Web管理入口。
+[YAML 配置](../server/docs/operations/configuration.md)支持严格校验、修订保存与恢复，旧 JSON 配置不兼容；普通插件可动态启用和应用设置，停用保存后重启生效，详见[插件管理](../server/docs/plugins/plugin-management.md)。
 
 ## 1. 本期范围与阅读入口
 
@@ -14,15 +14,15 @@
 
 桌面新增独立的 [React + Tauri 实现方案](../client/docs/implementation.md)：React/TypeScript 界面、Rust 原生播放和可安装插件，按 C0—C7 验证 Windows/macOS/Linux；当前全部待实施。现有 Server 的 `htmlAudio` 能力与传输模型需先增加兼容的原生协商，精确变更由 Server 维护，详见 [Client 接入前置项](../client/docs/implementation/server-integration.md)。该增量不重写下文 Server/Web 历史 P0—P8 验收状态。
 
-新增设计增量：[NAS / Bilibili 插件实施计划](../server/docs/implementation/nas-bilibili.md)，全部待实现。NFS/SMB 原生直连分别交付；B 站按匿名公开视频与公开收藏夹优先，补充音频区曲目/独立歌单，再接入可选账号与私有收藏夹。此增量不改变历史 P0—P8 完成记录，也不将平台登录作为匿名播放前置条件。
+新增设计增量：[NAS / Bilibili 插件实施计划](../server/docs/design/nas-bilibili.md)，全部待实现。NFS/SMB 原生直连分别交付；B 站按匿名公开视频与公开收藏夹优先，补充音频区曲目/独立歌单，再接入可选账号与私有收藏夹。此增量不改变历史 P0—P8 完成记录，也不将平台登录作为匿名播放前置条件。
 
 Server 已确定使用 Go。源码采用用户指定布局：各实现仓库的 `src/` 放源码，`src/app/` 放程序入口，其余模块按职责放在 `src/` 下；`tests/` 集中放测试。这是项目选择的布局，不声称它是 Go 唯一标准。语言和工具仍遵循 Go module、包导入、测试发现等规则。
 
 | 文档 | 维护范围 |
 | --- | --- |
 | [跨端架构](architecture.md) | 长期共同约束；实现计划不得放宽身份、授权和恢复规则 |
-| [Server 实施入口](../server/docs/implementation.md) | Go 工程、配置、存储、任务、扫描、流交付与后续能力 |
-| [Server 插件实施](../server/docs/implementation/plugins.md) | 插件协议、宿主、Local Files、音频处理、Scraper 与平台适配 |
+| [文档导航](../server/docs/README.md) | Go 工程、配置、存储、任务、扫描、流交付与后续能力 |
+| [Server 插件实施](../server/docs/plugins/plugin-architecture.md) | 插件协议、宿主、Local Files、音频处理、Scraper 与平台适配 |
 | [Web 实施](../web/docs/implementation.md) | 文件列表、原生播放控件和最小错误/定位交互 |
 | [Client 实施](../client/docs/implementation.md) | React/Tauri 工程、原生核心、动态插件、平台集成与独立 C0—C7 验收 |
 
@@ -46,7 +46,7 @@ Server 已确定使用 Go。源码采用用户指定布局：各实现仓库的 
 
 每个步骤记录状态、对应提交、自动测试、人工验收和限制；完成一项后再补证据，不预先勾选。下列阶段是完整目标，不代表相关所有子场景都已通过。P5—P7 不阻塞首个可播放版本，仍保留完整任务，不承诺已支持所有平台。
 
-P7 平台账号登录为明确交付要求，当前匿名能力不满足该要求。这里登录的是网易云、QQ 音乐、Apple Music 的用户账号，与 P1 的 MusicFS Server 登录独立；共同职责和验收见[平台账号登录](architecture.md#21-在线平台账号登录)。当前已接入登录适配、账号 API、Worker 扩展及 Web 设置页，实号授权验收尚未完成；新增协议和验证边界见[平台登录说明](../server/docs/platform-login.md)，尚无账号事件推送。
+P7 平台账号登录为明确交付要求，当前匿名能力不满足该要求。这里登录的是网易云、QQ 音乐、Apple Music 的用户账号，与 P1 的 MusicFS Server 登录独立；共同职责和验收见[平台账号登录](architecture.md#21-在线平台账号登录)。当前已接入登录适配、账号 API、Worker 扩展及 Web 设置页，实号授权验收尚未完成；新增协议和验证边界见[平台登录说明](../server/docs/providers/platform-login.md)，尚无账号事件推送。
 
 ## 3. 最小联合契约
 
@@ -70,7 +70,7 @@ P7 平台账号登录为明确交付要求，当前匿名能力不满足该要�
 
 P3的recover处理同源情况；P7新增独立recover-source，并要求当前授权、同Recording、两端固定资产及适用的时间证据。缺少证据返回明确重新播放提示，不伪造跨来源续播。P5—P7的匹配、内容、歌单与推荐已在[Server OpenAPI](../server/docs/contracts/openapi.yaml)补齐本期精确路径；最简Web仍只消费列表与播放，不因Server接口增加而扩成管理台。
 
-P8的[生命周期协议](../server/docs/lifecycle.md)由测试客户端验证Server行为，桌面进程启动器仍未实现。[完整备份恢复](../server/docs/backup.md)和[安装制品](../server/docs/deployment.md)保留实际Windows/WSL证据及未测环境，不能将容器样例、非零PCM或交叉编译分别当成Docker运行、人工听音或目标系统执行。
+P8的[生命周期协议](../server/docs/operations/lifecycle.md)由测试客户端验证Server行为，桌面进程启动器仍未实现。[完整备份恢复](../server/docs/operations/backup.md)和[安装制品](../server/docs/operations/deployment.md)保留实际Windows/WSL证据及未测环境，不能将容器样例、非零PCM或交叉编译分别当成Docker运行、人工听音或目标系统执行。
 
 ### 3.1 文件列表
 

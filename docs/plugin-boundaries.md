@@ -34,9 +34,9 @@
 | 主题、可选外部控制 | Client 声明式主题、原生控制插件 | UI 数据接口、PlayerCore 状态与授权命令；普通控制不授予安装权限 |
 | 数据库后端 / 备份 | Server 可信 Backend；内置 SQLite 与独立 SQLite Worker 已提供，其他数据库待适配 | 事务语义、迁移版本、一致性清单、对象引用、密钥和恢复判断 |
 
-各端插件类型及精确扩展契约分别见 [Server 插件架构](../server/docs/plugin-architecture.md)和 [Client 插件能力](../client/docs/plugin-capabilities.md)，不能把本表中的类别名直接写入现有 wire 协议。Web 继续按 Server 能力展示，不安装 C++ 插件，不读取 DLL，也不与 Server 插件通道直接通信。
+各端插件类型及精确扩展契约分别见 [Server 插件架构](../server/docs/plugins/plugin-architecture.md)和 [Client 插件能力](../client/docs/plugin-capabilities.md)，不能把本表中的类别名直接写入现有 wire 协议。Web 继续按 Server 能力展示，不安装 C++ 插件，不读取 DLL，也不与 Server 插件通道直接通信。
 
-以下职责保持内核模块：Server 的会话鉴权、API/事件协议、Schema 校验、稳定身份、数据库迁移版本与事务契约、人工结果保护、授权流网关和任务发布；Client 的 PlayerCore、Server 会话适配、安装/加载管理、配置提交、缓冲所有权、生命周期和受控启动器。可信存储后端可以执行完整原子操作及迁移，普通算法插件不能直接提交核心状态。外部 DSP 与持久化使用各自专用契约，细节见 [DSP 插件](../server/docs/dsp-plugins.md)和[存储插件](../server/docs/storage-plugins.md)。
+以下职责保持内核模块：Server 的会话鉴权、API/事件协议、Schema 校验、稳定身份、数据库迁移版本与事务契约、人工结果保护、授权流网关和任务发布；Client 的 PlayerCore、Server 会话适配、安装/加载管理、配置提交、缓冲所有权、生命周期和受控启动器。可信存储后端可以执行完整原子操作及迁移，普通算法插件不能直接提交核心状态。外部 DSP 与持久化使用各自专用契约，细节见 [DSP 插件](../server/docs/plugins/dsp-plugins.md)和[存储插件](../server/docs/plugins/storage-plugins.md)。
 
 ## 3. 两端运行和语言选择
 

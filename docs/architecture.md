@@ -10,7 +10,7 @@
 | --- | --- |
 | 本文 | 跨端能力协商、身份和版本、API、播放恢复、生命周期与共同验收 |
 | [Server 内部架构](../server/docs/architecture.md) | 音乐库、Music Provider、独立 Scraper、歌单同步、文件存储、任务、匹配与部署 |
-| [Server 音频处理](../server/docs/audio-processing.md) | 解复用、解码、DSP、编码/封装插件与输出管理 |
+| [Server 音频处理](../server/docs/playback/audio-processing.md) | 解复用、解码、DSP、编码/封装插件与输出管理 |
 | [Client 内部架构](../client/docs/architecture.md) | 桌面模块、插件宿主、播放器核心、窗口与本地启动器 |
 | [Client 音频与插件](../client/docs/audio-processing.md) | WMF / FFmpeg 适配、主题、DSP、切歌淡化及外部控制 API 插件 |
 | [跨端插件边界](plugin-boundaries.md) | 可插件化范围、两端执行方式、扩展前置条件与共同验收 |
@@ -21,7 +21,7 @@ Local Files 的实际音乐目录、扫描默认值与监听设置由管理员�
 
 「设置 → 插件管理」中的本地音乐摘要显示“n 个允许访问的目录”，统计授权根目录，不统计子目录或已添加的音乐目录；即使尚未添加音乐目录，仍展示授权数量。「设置 → 音乐源」在「本地音乐」标题右侧提供「添加本地目录」，下方只列出已添加的目录，每行右侧提供减号删除和编辑。添加弹窗以允许访问的目录为树根，只能选择这些根或子目录，不能在添加流程取消已有目录。编辑提供目录名称和该目录的查找设置，不改变其他目录的配置；删除只移除音乐源目录配置，保留授权范围、磁盘文件与已有曲库记录。
 
-逐目录查找设置支持递归、深度限制、隐藏内容和 .nomedia 处理；递归默认深度为 0，表示查找全部子目录。默认跳过点开头及 Windows 隐藏文件、目录，并遵循 .nomedia 跳过其所在目录及子树。新旧客户端兼容由 Server 的配置能力声明和可选字段约定；未设置目录覆盖时沿用实例默认值。取消不保存，保存不自动扫描。待配置实例仍显示插件自述的「本地音乐」名称并可添加目录。只有管理员目录浏览接口返回这些路径，普通来源与配置展示继续脱敏；Server 从授权根句柄相对打开目录，拒绝越界及链接逃逸。客户端沿用实例配置 API 和不透明修订，不直接访问插件数据库，具体路径和边界见 [Server 插件配置](../server/docs/plugin-configuration.md)。
+逐目录查找设置支持递归、深度限制、隐藏内容和 .nomedia 处理；递归默认深度为 0，表示查找全部子目录。默认跳过点开头及 Windows 隐藏文件、目录，并遵循 .nomedia 跳过其所在目录及子树。新旧客户端兼容由 Server 的配置能力声明和可选字段约定；未设置目录覆盖时沿用实例默认值。取消不保存，保存不自动扫描。待配置实例仍显示插件自述的「本地音乐」名称并可添加目录。只有管理员目录浏览接口返回这些路径，普通来源与配置展示继续脱敏；Server 从授权根句柄相对打开目录，拒绝越界及链接逃逸。客户端沿用实例配置 API 和不透明修订，不直接访问插件数据库，具体路径和边界见 [Server 插件配置](../server/docs/plugins/plugin-configuration.md)。
 
 Server 在自身 `docs/contracts` 维护 OpenAPI、事件 Schema 和带版本的协议 SDK；各运行端维护自己的插件 SDK。协议不依赖实现语言，插件二进制不承诺跨运行端通用。桌面已选择 React/TypeScript + Tauri 2 + Rust 原生核心，目标 Windows、macOS、Linux；音频与用户插件宿主独立于 UI，具体库和平台能力尚待验证。两个界面可按版本共享协议模型、资源及适用展示组件，浏览器播放器与原生核心分别实现。阶段与 Server 原生播放协商前置项见 [Client 实现方案](../client/docs/implementation.md)，这些桌面设计不改变现有线上协议，也不代表桌面已经交付。
 
@@ -29,21 +29,21 @@ Server 在自身 `docs/contracts` 维护 OpenAPI、事件 Schema 和带版本的
 
 当前 Server / 插件 / 最小 Web 的交付顺序与联合验收见[分阶段实施总览](implementation.md)。本文保持长期契约，具体模块和实现步骤由对应仓库维护。
 
-Server 的 Go 插件协议与公共模型整理为独立 SDK 模块，仍由 Server 仓库维护；在线平台实现位于独立插件模块，Server 宿主不编入平台实现。插件源码按音乐源、数据库、解码、刮削、DSP 分类，默认由 `plugins/unified` 装配为一个 `musicfs-plugins` 程序，与 Server 一同构成两个交付文件。九种插件角色通过 `--plugin` 选择，各实例独立启动进程；SQLite 和 DSP 保持专用协议与配置。单平台和单用途入口保留为可选分拆构建。模块、发布兼容与旧配置迁移见 [Server SDK](../server/docs/plugin-sdk.md)，依赖关系见 [模块图](diagrams/server-plugin-sdk.puml)。自动发现、显式禁用和待配置状态见 [Server 配置](../server/docs/configuration.md#内置插件程序与自动发现)，界面不得将 `pending_configuration` 显示为已就绪。
+Server 的 Go 插件协议与公共模型整理为独立 SDK 模块，仍由 Server 仓库维护；在线平台实现位于独立插件模块，Server 宿主不编入平台实现。插件源码按音乐源、数据库、解码、刮削、DSP 分类，默认由 `plugins/unified` 装配为一个 `musicfs-plugins` 程序，与 Server 一同构成两个交付文件。九种插件角色通过 `--plugin` 选择，各实例独立启动进程；SQLite 和 DSP 保持专用协议与配置。单平台和单用途入口保留为可选分拆构建。模块、发布兼容与旧配置迁移见 [Server SDK](../server/docs/plugins/plugin-sdk.md)，依赖关系见 [模块图](diagrams/server-plugin-sdk.puml)。自动发现、显式禁用和待配置状态见 [Server 配置](../server/docs/operations/configuration.md#内置插件程序与自动发现)，界面不得将 `pending_configuration` 显示为已就绪。
 
 Server 部署配置不指定实例 `role`；角色来自插件握手的 `Manifest.roles`，宿主校验后使用。名称与译名同样由插件声明，实例配置的可选 `name` 只表示管理员别名，示例与自动发现不预填名称。管理 API 的角色字段保持兼容。
 
-Server 来源插件 ID 统一为 `musicfs.plugin.source.xxx`，解码与音频处理插件统一为 `musicfs.plugin.decoder.xxx`；本地歌词/封面插件保留 `musicfs.scraper.local`。每个插件必须在握手中提供显示别名 `plugin.name`、译名和 `supportsMultipleInstances` 声明，管理接口返回这些信息；本地音乐、FFmpeg 和 NCM 只允许一个配置实例，三个在线平台及本地歌词/封面插件支持多实例。插件实例使用稳定 UUID，与插件 ID 和显示别名分离；在线实例名称取当前已校验账号的用户名，未登录时回退插件别名。客户端按声明展示插件与账号，不以 UUID 作为标题。旧命名、UUID 迁移及配套升级要求见 [Server 插件身份与名称](../server/docs/plugin-identity.md)。
+Server 来源插件 ID 统一为 `musicfs.plugin.source.xxx`，解码与音频处理插件统一为 `musicfs.plugin.decoder.xxx`；本地歌词/封面插件保留 `musicfs.scraper.local`。每个插件必须在握手中提供显示别名 `plugin.name`、译名和 `supportsMultipleInstances` 声明，管理接口返回这些信息；本地音乐、FFmpeg 和 NCM 只允许一个配置实例，三个在线平台及本地歌词/封面插件支持多实例。插件实例使用稳定 UUID，与插件 ID 和显示别名分离；在线实例名称取当前已校验账号的用户名，未登录时回退插件别名。客户端按声明展示插件与账号，不以 UUID 作为标题。旧命名、UUID 迁移及配套升级要求见 [Server 插件身份与名称](../server/docs/plugins/plugin-identity.md)。
 
-Server 插件和实例停用只保存配置，重启 Server 后生效；当前 Worker、任务、播放及新工作准入保持。启用和实例设置仍可动态应用。管理快照及操作的 `restartRequired` 与实例 `RESTART_REQUIRED` 原因区分保存意图和运行状态；待重启时 `effectiveEnabled` 按当前运行开关计算，`appliedRevision` 不推进至新修订。旧 `mode=drain/force` 仅兼容接受，不再排空或取消。客户端不得凭保存开关或操作 succeeded 宣称已经停用，见[Server 插件管理](../server/docs/implementation/plugin-management.md)。
+Server 插件和实例停用只保存配置，重启 Server 后生效；当前 Worker、任务、播放及新工作准入保持。启用和实例设置仍可动态应用。管理快照及操作的 `restartRequired` 与实例 `RESTART_REQUIRED` 原因区分保存意图和运行状态；待重启时 `effectiveEnabled` 按当前运行开关计算，`appliedRevision` 不推进至新修订。旧 `mode=drain/force` 仅兼容接受，不再排空或取消。客户端不得凭保存开关或操作 succeeded 宣称已经停用，见[Server 插件管理](../server/docs/plugins/plugin-management.md)。
 
 Web 插件管理的“插件列表”按插件显示名称、用途、ID 和必填版本，各插件以横线分隔，展开后查看独立实例及状态；刷新按钮在标题右侧。用途来自插件的 `features` 声明，例如音乐源、音频处理、音频解密、歌词和封面。类型筛选支持多选，默认空选显示全部，清空选择也显示全部；多个类型匹配任一项即可。ID／名称搜索不区分大小写，与类型筛选组合生效，刷新保留当前筛选。所有插件必须声明有效发行版本；随包插件尚未启动时采用与 Worker 同源的版本声明，成功握手后使用实际版本；具体版本校验及协议兼容由 Server 维护。
 
-摘要不展示实例数量，可选数量及单位通过 `displayCount` 提供：本地音乐的授权目录数量由掌握权限配置的 Server 统计，Worker 不接收未添加目录的授权路径；需要登录的在线插件报告已登录平台用户数量。Server 只按当前可见范围汇总同单位统计，Web 仅选择响应提供的单位译文，缺失时隐藏，不自行推算。登录插件的每个实例属于一个 MusicFS 用户，并独立承载一个平台账号；同一用户的不同平台账号也使用不同 UUID 实例。管理员默认查看自己的在线实例与共享实例，可勾选“显示所有用户实例”查看全部归属；此项只扩大管理员管理视图，不扩大平台账号的业务访问权限。具体管理字段、部署归属配置及兼容范围由 [Server 插件管理](../server/docs/implementation/plugin-management.md)维护。现有 MusicFS 登录入口仍仅创建管理员会话，实例归属能力不代表已交付一般用户注册与账号管理。
+摘要不展示实例数量，可选数量及单位通过 `displayCount` 提供：本地音乐的授权目录数量由掌握权限配置的 Server 统计，Worker 不接收未添加目录的授权路径；需要登录的在线插件报告已登录平台用户数量。Server 只按当前可见范围汇总同单位统计，Web 仅选择响应提供的单位译文，缺失时隐藏，不自行推算。登录插件的每个实例属于一个 MusicFS 用户，并独立承载一个平台账号；同一用户的不同平台账号也使用不同 UUID 实例。管理员默认查看自己的在线实例与共享实例，可勾选“显示所有用户实例”查看全部归属；此项只扩大管理员管理视图，不扩大平台账号的业务访问权限。具体管理字段、部署归属配置及兼容范围由 [Server 插件管理](../server/docs/plugins/plugin-management.md)维护。现有 MusicFS 登录入口仍仅创建管理员会话，实例归属能力不代表已交付一般用户注册与账号管理。
 
 ### 1.1 插件化决策与执行边界
 
-2026-10-20 服务端增量：DSP 通过有序节点链和独立 Worker 扩展，首版限制无状态、固定格式/帧数、零延迟和无尾音；持久化通过受信任 Backend 契约替换，提供默认 SQLite 与独立 SQLite Worker。SQLite 属于必需存储后端，不能被禁用。2026-10-21 管理列表增量：数据库与 DSP 纳入统一插件列表，数据库标记“必需”并展示后端模式和可用性，服务端拒绝停用；DSP 展示启动配置、是否加入处理链及节点顺序和参数，不将配置状态表述为当前正在处理音频。两者不使用普通插件启停操作，修改部署配置后重启生效；只读展示不暴露程序路径、启动参数、摘要或存储选项。Schema/迁移版本、事务语义和文件发布协调仍归 Server，后端执行原子操作与快照。公共播放描述报告实际 DSP 链并按链身份隔离缓存/恢复；旧 Web 可继续忽略新增可选节点参数。具体已实现范围见 [DSP 插件](../server/docs/dsp-plugins.md)和[存储插件](../server/docs/storage-plugins.md)。
+2026-10-20 服务端增量：DSP 通过有序节点链和独立 Worker 扩展，首版限制无状态、固定格式/帧数、零延迟和无尾音；持久化通过受信任 Backend 契约替换，提供默认 SQLite 与独立 SQLite Worker。SQLite 属于必需存储后端，不能被禁用。2026-10-21 管理列表增量：数据库与 DSP 纳入统一插件列表，数据库标记“必需”并展示后端模式和可用性，服务端拒绝停用；DSP 展示启动配置、是否加入处理链及节点顺序和参数，不将配置状态表述为当前正在处理音频。两者不使用普通插件启停操作，修改部署配置后重启生效；只读展示不暴露程序路径、启动参数、摘要或存储选项。Schema/迁移版本、事务语义和文件发布协调仍归 Server，后端执行原子操作与快照。公共播放描述报告实际 DSP 链并按链身份隔离缓存/恢复；旧 Web 可继续忽略新增可选节点参数。具体已实现范围见 [DSP 插件](../server/docs/plugins/dsp-plugins.md)和[存储插件](../server/docs/plugins/storage-plugins.md)。
 
 可替换的来源适配、媒体算法、格式处理、外观与控制接入优先使用有版本的插件接口；身份、授权、状态所有权、事务发布和生命周期协调留在宿主。现有 C/S 架构支持这个方向，但“允许扩展”不代表“当前 SDK 已接受所有插件类型”：新增角色、NAS/在线音频资源通道及桌面播放协商须先补对应宿主契约，具体缺口见[跨端插件边界](plugin-boundaries.md)。
 
@@ -57,7 +57,7 @@ Server 汇集本地音乐文件、已挂载 NAS 与在线平台来源，提供�
 
 界面根据 Server 返回的实例与能力展示操作，不预设每个 Provider 都能搜索、扫描、登录、读取歌单或推荐歌单。网易云、QQ 音乐、Apple Music 是目标来源，这三个 Music Provider 插件必须提供对应平台的用户登录/授权能力；具体登录方式与推荐、播放、付费内容能力须逐平台验证。此项是交付要求，不代表已实现。推荐结果保留平台排序、来源、账号/匿名范围、有效期与分页状态；允许按来源分栏及部分失败。打开推荐项不自动加入用户歌单，用户选择导入或绑定后才进入歌单库；推荐列表变化不删除已导入歌单，也不触发远程写回。推荐可见不代表歌曲一定可播放。
 
-音乐来源的插件身份、默认显示名、各语言译名和 `music-source` 功能由插件声明，Server 校验后传给客户端；Client / Web 不维护平台 ID 到名称或译名的固定映射。界面按当前语言选择插件译名，缺少匹配时使用插件默认名；插件 ID、实例 ID、管理员设置的实例别名和平台账号昵称保持独立语义，设置页的平台标题不拼接实例别名。本地来源与在线来源统一放在“音乐来源”区域，需要登录的插件在对应来源中提供账号操作。尚未取得有效声明时显示通用未知来源提示，不从实例编号推断平台名。当前协议字段及升级要求见 [Server 插件身份与名称](../server/docs/plugin-identity.md)；桌面 Client 尚无实现，后续须遵循该契约。
+音乐来源的插件身份、默认显示名、各语言译名和 `music-source` 功能由插件声明，Server 校验后传给客户端；Client / Web 不维护平台 ID 到名称或译名的固定映射。界面按当前语言选择插件译名，缺少匹配时使用插件默认名；插件 ID、实例 ID、管理员设置的实例别名和平台账号昵称保持独立语义，设置页的平台标题不拼接实例别名。本地来源与在线来源统一放在“音乐来源”区域，需要登录的插件在对应来源中提供账号操作。尚未取得有效声明时显示通用未知来源提示，不从实例编号推断平台名。当前协议字段及升级要求见 [Server 插件身份与名称](../server/docs/plugins/plugin-identity.md)；桌面 Client 尚无实现，后续须遵循该契约。
 
 歌单导航在现有个人歌单下按来源增加“xxx 的歌单”，xxx 使用插件的当前语言显示名，列表通过对应插件的 `playlist.list` 能力读取已登录账号的歌单。只有插件成功返回至少一个可用歌单时才显示分类；加载中、空列表、未登录、离线、不支持或读取失败时不显示。平台退出或切换账号时清理旧分类与在途结果；浏览来源歌单不自动导入、同步或写回平台。
 
@@ -67,7 +67,7 @@ Server 汇集本地音乐文件、已挂载 NAS 与在线平台来源，提供�
 
 ### 2.1 在线平台账号登录
 
-登录与业务接口优先参考开源项目中已验证的模拟客户端方式，采用相应客户端的请求路径、参数、加密/签名、设备标识及会话机制，不以仅修改 User-Agent 代替客户端适配。按平台和接口逐项验证；客户端方式不可用时可采用已验证的 Web / 官方 SDK 方式，并记录原因、参考版本和限制。具体接入与证据见 [Server 平台账号登录](../server/docs/platform-login.md)。
+登录与业务接口优先参考开源项目中已验证的模拟客户端方式，采用相应客户端的请求路径、参数、加密/签名、设备标识及会话机制，不以仅修改 User-Agent 代替客户端适配。按平台和接口逐项验证；客户端方式不可用时可采用已验证的 Web / 官方 SDK 方式，并记录原因、参考版本和限制。具体接入与证据见 [Server 平台账号登录](../server/docs/providers/platform-login.md)。
 
 网易云、QQ 音乐、Apple Music 都是必须登录的在线源。除实例发现、能力说明和登录/退出控制面外，搜索、资料、推荐、歌单预览、导入、同步及播放请求都要求对应实例具有已校验的平台账号；未登录、过期或重启后尚未校验时拒绝业务访问，不回退到匿名接口或旧缓存。请求使用本实例账号会话，缓存与分页游标绑定账号及登录代次。
 
@@ -83,13 +83,13 @@ Server 汇集本地音乐文件、已挂载 NAS 与在线平台来源，提供�
 
 ### 2.2 NAS 直连与 Bilibili 音频增量
 
-新增 NFS、SMB 两个独立 NAS Music Provider 的设计，直接连接管理员授权的 NAS 共享/export；已挂载 NAS 继续由 Local Files 提供，三种方式不自动合并或迁移来源。首批只读扫描、元数据和播放，NAS 凭据与端点仅由 Server 管理；客户端只访问受鉴权的音乐库与播放地址。离线、扫描不完整或共享身份改变时保留已有曲目与歌单，不当作空库。协议版本和安全选项须分别实测，详见 [NAS Provider 设计](../server/docs/nas-providers.md)。
+新增 NFS、SMB 两个独立 NAS Music Provider 的设计，直接连接管理员授权的 NAS 共享/export；已挂载 NAS 继续由 Local Files 提供，三种方式不自动合并或迁移来源。首批只读扫描、元数据和播放，NAS 凭据与端点仅由 Server 管理；客户端只访问受鉴权的音乐库与播放地址。离线、扫描不完整或共享身份改变时保留已有曲目与歌单，不当作空库。协议版本和安全选项须分别实测，详见 [NAS Provider 设计](../server/docs/design/nas-providers.md)。
 
 Bilibili Provider 以公开内容匿名读取/播放为基础，登录是私有或受限功能的可选授权，不是启用插件的条件；MusicFS 自身鉴权仍然必需。B 站收藏夹为主要远程歌单来源，音频区独立歌单作为补充；两类均可预览、显式导入或绑定同步，保留来源类型、顺序、权限和全部出处，不向平台自动写回。公开视频音轨按分 P 建立曲目，音频区曲目使用独立身份；收藏夹展开分 P 的策略由用户预览确认并保存在绑定修订中。
 
-公开视频、公开收藏夹、音频区曲目/歌单及账号功能分别声明能力并验收；音频区暂不可用不影响已验证的视频/收藏夹能力。B 站不沿用第 2.1 节三个音乐平台的强制账号交付前置要求；若接入账号，仍遵循该节的用户隔离、授权失效及退出语义。账号失效、集合转私有或分页不完整不能发布空歌单覆盖旧快照。详见 [Bilibili 设计](../server/docs/bilibili-provider.md)。
+公开视频、公开收藏夹、音频区曲目/歌单及账号功能分别声明能力并验收；音频区暂不可用不影响已验证的视频/收藏夹能力。B 站不沿用第 2.1 节三个音乐平台的强制账号交付前置要求；若接入账号，仍遵循该节的用户隔离、授权失效及退出语义。账号失效、集合转私有或分页不完整不能发布空歌单覆盖旧快照。详见 [Bilibili 设计](../server/docs/design/bilibili-provider.md)。
 
-NAS 与 B 站音频统一进入 SourceTrack/SourceAsset、播放协商与恢复流程，不向客户端泄露 NAS 路径/凭据或短期 CDN 授权头。分 P 序号、标题、元数据摘要和播放 URL 不是固定资产版本证据；无法证明固定字节表示时不能宣告稳定 Range 或拼接旧偏移。SDK、资源通道和在线资产建档仍需扩展，实施顺序见 [NAS / Bilibili 增量计划](../server/docs/implementation/nas-bilibili.md)。
+NAS 与 B 站音频统一进入 SourceTrack/SourceAsset、播放协商与恢复流程，不向客户端泄露 NAS 路径/凭据或短期 CDN 授权头。分 P 序号、标题、元数据摘要和播放 URL 不是固定资产版本证据；无法证明固定字节表示时不能宣告稳定 Range 或拼接旧偏移。SDK、资源通道和在线资产建档仍需扩展，实施顺序见 [NAS / Bilibili 增量计划](../server/docs/design/nas-bilibili.md)。
 
 ## 3. 共同身份与版本语义
 
@@ -157,7 +157,7 @@ NCM 的 SourceAsset 仍标识原始加密容器，文件大小、摘要与版本
 
 Client / Web 上报实际可用的 codec、container、MIME、传输方式、定位能力及请求的处理效果。Server 选择可交付的来源与输出：兼容且无需处理时直接播放或字节代理；需要兼容处理或 DSP 时使用 Server 插件链输出。浏览器和桌面原生播放器分别协商，不预设浏览器格式支持，也不把桌面音频绑定到某个 UI 框架。
 
-NCM 由 Server 的独立 `audio.decrypt` 插件解除外层容器，保留内部编码字节；纯解密交付为 `proxy`，需要兼容转码或用户请求 DSP 时再进入处理链并返回 `processed`。`effectiveProcessing` 的 `ncmDecrypt` 项标明服务端解密，不能据此宣称应用了增益等 DSP。插件控制面使用版本化 JSON-RPC/stdio，只传任务与资源描述；音频正文走独立、受任务授权约束的私有二进制通道，由 Server 管理取消与回收。Client / Web 只访问 Server 返回的受鉴权播放地址，不直接连接插件数据通道。配置、协议和已验证范围见 [Server NCM 插件](../server/docs/ncm.md)，不由本节扩大其他格式或平台的实现范围。
+NCM 由 Server 的独立 `audio.decrypt` 插件解除外层容器，保留内部编码字节；纯解密交付为 `proxy`，需要兼容转码或用户请求 DSP 时再进入处理链并返回 `processed`。`effectiveProcessing` 的 `ncmDecrypt` 项标明服务端解密，不能据此宣称应用了增益等 DSP。插件控制面使用版本化 JSON-RPC/stdio，只传任务与资源描述；音频正文走独立、受任务授权约束的私有二进制通道，由 Server 管理取消与回收。Client / Web 只访问 Server 返回的受鉴权播放地址，不直接连接插件数据通道。配置、协议和已验证范围见 [Server NCM 插件](../server/docs/playback/ncm.md)，不由本节扩大其他格式或平台的实现范围。
 
 | 播放描述字段 | 语义 |
 | --- | --- |
@@ -213,4 +213,4 @@ Server 保留实际启动归属并维护经鉴权的 Client 租约。随 Client 
 5. Server 处理输出在真实 Web 环境播放和按时间定位，桌面原生能力单独协商；DSP 不重复，跨源无法证明时间轴兼容时提示重播。
 6. 多 Client 启停、崩溃租约回收、独立 Server 保持运行、remote 无本机启动，以及不兼容版本的可恢复升级流程。
 
-[跨端组件图](diagrams/components.puml) 展示交互边界；桌面线框与本机插件细节见 [Client 设计入口](../client/docs/design.md)。Server 与最简 Web 的当前实现范围见[实施记录](../server/docs/validation/progress.md)，本文保留长期架构，不将设计中的全部功能视为已实现。图示仍保留 PlantUML / Salt 源码，尚无已验证的渲染图。
+[跨端组件图](diagrams/components.puml) 展示交互边界；桌面线框与本机插件细节见 [Client 设计入口](../client/docs/design.md)。Server 的使用与能力边界见[文档导航](../server/docs/README.md)，剩余环境与功能验证见[待验收清单](../server/docs/validation/README.md)。本文保留长期架构，不将设计中的全部功能视为已实现。图示仍保留 PlantUML / Salt 源码，尚无已验证的渲染图。
