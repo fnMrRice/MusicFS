@@ -1,6 +1,6 @@
 # MusicFS 跨端架构设计
 
-状态：共同架构 v0.7；2026-10-11。本文定义 Server 与桌面 Client / Web 之间共同遵守的职责边界、数据语义、协议和协作流程；长期目标不代表已全部实现。本次细化插件职责与 CMake/C++23 约定，确定 Client 原生插件在同一原生宿主进程内加载动态库；这些设计尚未实现。当前交付及平台限制见[实施总览](implementation.md)和各实现仓库的验证记录；NFS/SMB 与 Bilibili 仍为待实现设计。
+状态：共同架构 v0.8；2026-10-21。本文定义 Server 与桌面 Client / Web 之间共同遵守的职责边界、数据语义、协议和协作流程；长期目标不代表已全部实现。本次将 Server 官方内置插件统一为主进程执行，并记录四类媒体算法的内置插件边界。Client 同进程原生动态库和 CMake/C++23 约定仍属待实施设计。当前交付及平台限制见[实施总览](implementation.md)和各实现仓库的验证记录；NFS/SMB 与 Bilibili 仍为待实现设计。
 
 ## 1. 文档范围与仓库分工
 
@@ -29,7 +29,7 @@ Server 在自身 `docs/contracts` 维护 OpenAPI、事件 Schema 和带版本的
 
 当前 Server / 插件 / 最小 Web 的交付顺序与联合验收见[分阶段实施总览](implementation.md)。本文保持长期契约，具体模块和实现步骤由对应仓库维护。
 
-Server 的 Go 插件协议与公共模型整理为独立 SDK 模块，仍由 Server 仓库维护；在线平台实现位于独立插件模块，Server 宿主不编入平台实现。插件源码按音乐源、数据库、解码、刮削、DSP 分类，默认由 `plugins/unified` 装配为一个 `musicfs-plugins` 程序，与 Server 一同构成两个交付文件。九种插件角色通过 `--plugin` 选择，各实例独立启动进程；SQLite 和 DSP 保持专用协议与配置。单平台和单用途入口保留为可选分拆构建。模块、发布兼容与旧配置迁移见 [Server SDK](../server/docs/plugins/plugin-sdk.md)，依赖关系见 [模块图](diagrams/server-plugin-sdk.puml)。自动发现、显式禁用和待配置状态见 [Server 配置](../server/docs/operations/configuration.md#内置插件程序与自动发现)，界面不得将 `pending_configuration` 显示为已就绪。
+Server 的 Go 插件协议与公共模型为独立 SDK 模块，仍由 Server 仓库维护；在线平台实现保留独立 Go 模块，并编入 Server 的官方内置装配。音乐源、数据库、解码、刮削、DSP 和媒体算法插件都在 Server 主进程运行，各实例保持独立配置、账号状态、上下文和通信边界。默认运行不需要插件可执行文件；`musicfs-plugins`、单平台和单用途入口只用于显式选择 `execution: process` 的外部进程兼容模式，不自动为内置插件派生进程。FFmpeg、ffprobe、fpcalc 等受控工具仍可按任务启动外部程序。模块、发布兼容与旧配置迁移见 [Server SDK](../server/docs/plugins/plugin-sdk.md)，依赖关系见 [模块图](diagrams/server-plugin-sdk.puml)。默认装配、显式禁用和待配置状态见 [Server 配置](../server/docs/operations/configuration.md)，界面不得将 `pending_configuration` 显示为已就绪。
 
 Server 部署配置不指定实例 `role`；角色来自插件握手的 `Manifest.roles`，宿主校验后使用。名称与译名同样由插件声明，实例配置的可选 `name` 只表示管理员别名，示例与自动发现不预填名称。管理 API 的角色字段保持兼容。
 
@@ -43,13 +43,15 @@ Web 插件管理的“插件列表”按插件显示名称、用途、ID 和必�
 
 ### 1.1 插件化决策与执行边界
 
-2026-10-20 服务端增量：DSP 通过有序节点链和独立 Worker 扩展，首版限制无状态、固定格式/帧数、零延迟和无尾音；持久化通过受信任 Backend 契约替换，提供默认 SQLite 与独立 SQLite Worker。SQLite 属于必需存储后端，不能被禁用。2026-10-21 管理列表增量：数据库与 DSP 纳入统一插件列表，数据库标记“必需”并展示后端模式和可用性，服务端拒绝停用；DSP 展示启动配置、是否加入处理链及节点顺序和参数，不将配置状态表述为当前正在处理音频。两者不使用普通插件启停操作，修改部署配置后重启生效；只读展示不暴露程序路径、启动参数、摘要或存储选项。数据库插件维护主库和实例状态库的具体 Schema、建库与迁移资源，在返回可用后端前完成初始化；宿主保留业务数据与事务契约、数据锁、生命周期和文件发布协调，配置预加载只读且不建库。Server 仓库继续维护这些契约及插件实现。公共播放描述报告实际 DSP 链并按链身份隔离缓存/恢复；旧 Web 可继续忽略新增可选节点参数。具体已实现范围见 [DSP 插件](../server/docs/plugins/dsp-plugins.md)和[存储插件](../server/docs/plugins/storage-plugins.md)。
+2026-10-21 服务端增量：官方内置 DSP 和 SQLite 与其他内置插件一起在 Server 主进程运行，显式外部模式保留专用协议。DSP 通过有序节点链扩展，首版限制无状态、固定格式/帧数、零延迟和无尾音；SQLite 属于必需存储后端，不能被禁用。数据库与 DSP 纳入统一插件列表，数据库标记“必需”并展示后端模式和可用性；DSP 展示启动配置、是否加入处理链及节点顺序和参数，不将配置状态表述为当前正在处理音频。两者不使用普通插件启停操作，修改部署配置后重启生效；只读展示不暴露程序路径、启动参数、摘要或存储选项。数据库插件维护主库和实例状态库的具体 Schema、建库与迁移资源，在返回可用后端前完成初始化；宿主保留业务数据与事务契约、数据锁、生命周期和文件发布协调，配置预加载只读且不建库。Server 仓库继续维护这些契约及插件实现。公共播放描述报告实际 DSP 链并按链身份隔离缓存/恢复；旧 Web 可继续忽略新增可选节点参数。具体已实现范围见 [DSP 插件](../server/docs/plugins/dsp-plugins.md)和[存储插件](../server/docs/plugins/storage-plugins.md)。
+
+四类新增内置算法通过 Go 接口注入：音频分析为 `plugins/analysis/chromaprint`，接入 `fingerprintworker.Extractor`；标签格式为 `plugins/tags/flac`，接入 `sdk/tagformat.Format`；匹配评分为 `plugins/matching/standard`，接入 `candidates.Scorer`；内容变换为 `plugins/transform/thumbnail`，接入 `sdk/contenttransform.Thumbnailer`。当前分别实现已有 Chromaprint 指纹、FLAC 标签重写、标准候选评分、PNG/JPEG 缩略图，不代表 BPM/调性、ID3/MP4、任意评分模型或歌词对齐已经实现。插件发行版本独立声明，但内置版本随 Server 重新构建和交付；不提供任意第三方代码加载。授权、任务、资产版本、人工确认、原件替换和结果发布仍由宿主负责。
 
 可替换的来源适配、媒体算法、格式处理、外观与控制接入优先使用有版本的插件接口；身份、授权、状态所有权、事务发布和生命周期协调留在宿主。现有 C/S 架构支持这个方向，但“允许扩展”不代表“当前 SDK 已接受所有插件类型”：新增角色、NAS/在线音频资源通道及桌面播放协商须先补对应宿主契约，具体缺口见[跨端插件边界](plugin-boundaries.md)。
 
 Client 原生插件统一在 Rust 原生宿主的同一进程内加载，Windows 为 DLL、macOS 为 dylib、Linux 为 so，不设置 PluginWorker、插件子进程或独立音频引擎进程。主题仍为声明式资源包。Client 不提供插件卸载，已加载库保留到进程退出；插件启用、停用、更新和回滚保存为期望设置，统一重启后生效，界面区分当前状态与下次启动状态。Tauri/WebView 自身可能使用系统辅助进程，这不改变原生插件的单进程约定。插件故障可能终止整个 Client，清单权限不是原生代码沙箱。
 
-Server 保留独立进程插件，以已有版本化控制协议与受控二进制通道接入。需要 C++ 的插件与自有适配层统一用 CMake/C++23 开发；Client 通过版本化 C ABI 加载，Server 优先由 C++ 可执行插件对接现有 IPC。两端可复用算法源码，但独立构建、适配、发布和验收；不承诺共用 DLL，也不将现有 Go/Rust/TypeScript 实现统一改写为 C++。构建规范不代替各运行端 SDK。
+Server 内置插件与宿主共享进程，取消和退出依靠协作，不具备插件崩溃、内存破坏或卡死隔离；不能通过强杀插件线程保证服务继续运行。只有显式配置的外部进程插件使用独立进程与回收机制，进程隔离仍不等于操作系统权限沙箱。需要 C++ 的插件与自有适配层统一用 CMake/C++23 开发；Client 通过版本化 C ABI 加载，未来 Server 内置 C++ 适配也必须留在主进程，具体桥接尚待实现与验证。外部 C++ 可执行插件可按显式进程模式适配已有 IPC。两端可复用算法源码，但独立构建、适配、发布和验收；不承诺共用 DLL，也不将现有 Go/Rust/TypeScript 实现统一改写为 C++。
 
 ## 2. 跨端职责与可见能力
 
@@ -157,7 +159,7 @@ NCM 的 SourceAsset 仍标识原始加密容器，文件大小、摘要与版本
 
 Client / Web 上报实际可用的 codec、container、MIME、传输方式、定位能力及请求的处理效果。Server 选择可交付的来源与输出：兼容且无需处理时直接播放或字节代理；需要兼容处理或 DSP 时使用 Server 插件链输出。浏览器和桌面原生播放器分别协商，不预设浏览器格式支持，也不把桌面音频绑定到某个 UI 框架。
 
-NCM 由 Server 的独立 `audio.decrypt` 插件解除外层容器，保留内部编码字节；纯解密交付为 `proxy`，需要兼容转码或用户请求 DSP 时再进入处理链并返回 `processed`。`effectiveProcessing` 的 `ncmDecrypt` 项标明服务端解密，不能据此宣称应用了增益等 DSP。插件控制面使用版本化 JSON-RPC/stdio，只传任务与资源描述；音频正文走独立、受任务授权约束的私有二进制通道，由 Server 管理取消与回收。Client / Web 只访问 Server 返回的受鉴权播放地址，不直接连接插件数据通道。配置、协议和已验证范围见 [Server NCM 插件](../server/docs/playback/ncm.md)，不由本节扩大其他格式或平台的实现范围。
+NCM 由 Server 的内置 `audio.decrypt` 插件解除外层容器，保留内部编码字节；纯解密交付为 `proxy`，需要兼容转码或用户请求 DSP 时再进入处理链并返回 `processed`。`effectiveProcessing` 的 `ncmDecrypt` 项标明服务端解密，不能据此宣称应用了增益等 DSP。内置插件在主进程内通过独立通信流保留版本化 JSON-RPC 控制语义，显式外部模式才使用 stdio；控制面只传任务与资源描述。音频正文走独立、受任务授权约束的私有二进制通道，由 Server 管理取消与回收。Client / Web 只访问 Server 返回的受鉴权播放地址，不直接连接插件数据通道。配置、协议和已验证范围见 [Server NCM 插件](../server/docs/playback/ncm.md)，不由本节扩大其他格式或平台的实现范围。
 
 | 播放描述字段 | 语义 |
 | --- | --- |

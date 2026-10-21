@@ -6,7 +6,7 @@ Go Server 已提供本地扫描、授权原流、服务端处理播放、NCM、�
 
 NCM 插件接入本地扫描与播放，支持提取容器内的 MP3/FLAC；配置及限制见[NCM 说明](server/docs/playback/ncm.md)，操作见[运行说明](server/docs/operations/running.md)，验证方法见[复验指南](server/docs/validation/verification.md)。格式变体与实际输出设备仍按待验范围分别验证。
 
-Server 使用[版本化 YAML 配置](server/docs/operations/configuration.md)，支持插件动态启用、能力变更通知和修订检查；停用保存后重启生效。Local Files 目录通过管理接口持久化，YAML 限定权限。内置插件统一分发并按角色独立启动，缺少必要配置时显示待配置，见[插件配置](server/docs/plugins/plugin-configuration.md)。
+Server 使用[版本化 YAML 配置](server/docs/operations/configuration.md)，支持插件动态启用、能力变更通知和修订检查；停用保存后重启生效。Local Files 目录通过管理接口持久化，YAML 限定权限。全部官方内置插件运行在 Server 主进程，账号与实例边界保留；显式外部模式才启动插件程序，FFmpeg/ffprobe/fpcalc 仍可作为受控工具运行。缺少必要配置时显示待配置，见[插件配置](server/docs/plugins/plugin-configuration.md)。
 
 ## 本地打包与启动
 
@@ -27,7 +27,7 @@ Server 使用[版本化 YAML 配置](server/docs/operations/configuration.md)，
 ## 设计文档
 
 - [跨端架构设计](docs/architecture.md)
-- [跨端插件边界](docs/plugin-boundaries.md)：Client 单进程动态库、Server 独立进程，以及可扩展范围与前置条件。
+- [跨端插件边界](docs/plugin-boundaries.md)：Client 单进程动态库、Server 官方内置主进程及显式外部模式，以及扩展前置条件。
 - [C++ 插件构建约定](docs/native-plugins.md)：需要 C++ 的插件统一 CMake/C++23，分别适配两端 SDK；设计待实施。
 - [插件运行边界图](docs/diagrams/plugin-boundaries.puml)
 - [前端 UI 设计草案](docs/ui-design.md)：共享布局、导航与用户菜单，待确认。

@@ -1,5 +1,5 @@
 @startuml
-title MusicFS 插件运行边界（Server DSP/存储已有增量；Client 尚未实现）
+title MusicFS 插件运行边界（Server 内置同进程；Client 尚未实现）
 left to right direction
 skinparam componentStyle rectangle
 
@@ -16,25 +16,36 @@ rectangle "Client：单一原生宿主进程" as Client {
   CHost --> Theme : 校验 / 加载
 }
 
-rectangle "Server 核心进程" as Server {
+rectangle "Server 主进程：所有官方内置插件" as Server {
   component "Go 内核\n鉴权 / Library / 事务 / Gateway" as SCore
   component "Server Plugin Host" as SHost
   component "Storage Backend\n业务契约 / 选择 / 文件保护协调" as Storage
+  component "内置来源 / Scraper / Audio\n每实例或任务独立上下文\n账号与权限边界保留" as Builtin
+  component "内置 DSP gain\n无状态 / 固定 PCM / 零延迟" as DSP
+  component "内置 SQLite\n主库 / 实例状态 / Schema / 迁移" as DB
+  component "内置分析 / 标签 / 评分 / 变换\nChromaprint / FLAC / 标准评分 / 缩略图" as Algorithms
   SCore --> SHost : 受授权任务 / 生命周期
   SCore --> Storage : 领域 Repository / 事务契约
+  SHost <--> Builtin : 独立内存流 / 原握手协议
+  Builtin <--> DSP : 内存流 / 原 PCM 帧协议
+  Storage --> DB : 直接后端接口
+  SCore --> Algorithms : 显式 Go 接口注入
 }
 
-rectangle "Server 独立插件进程\n按角色 / 任务受管" as Workers {
-  component "Provider / Scraper / Audio\n已有 Go 插件保留\nC++ 插件：CMake / C++23 可执行程序" as Worker
-  component "独立 DSP 节点\n无状态 / 零延迟 / 固定 PCM" as DSP
-  component "可信持久化 Worker\nBackend / Maintenance / 实例状态\n建库 / Schema / 迁移\nSQLite：必需，不可禁用" as DBWorker
-  Worker <--> DSP : 版本化二进制 PCM
+rectangle "显式外部进程模式：默认不启动" as Workers {
+  component "可选 Provider / Scraper / Audio\n兼容入口及固定身份 / 摘要验证" as Worker
+  component "可选 DSP / SQLite Worker\n专用协议与显式部署配置" as ExternalInfrastructure
 }
+
+component "受控外部工具\nFFmpeg / ffprobe / fpcalc" as Tools
 
 Core --> SCore : 版本化 HTTP / 能力 / 播放协商
 SCore --> Audio : 授权音频流 / 固定表示
-SHost <--> Worker : JSON-RPC / stdio 控制\n任务授权二进制数据通道
-Storage <--> DBWorker : 业务操作 RPC / 受控嵌套回调\n可静态校验的便携快照
+SHost <--> Worker : execution: process\nJSON-RPC / stdio / 任务二进制通道
+Storage <--> ExternalInfrastructure : 显式外部存储 / 业务 RPC
+Builtin <--> ExternalInfrastructure : 显式外部 DSP / PCM 帧
+Builtin --> Tools : 有界任务 / 超时 / 清理
+Algorithms --> Tools : 指纹 / 规范化工具
 
 note bottom of Client
   不使用插件 Worker 或独立音频引擎进程。
@@ -43,11 +54,18 @@ note bottom of Client
   WebView 系统辅助进程不属于插件执行模型。
 end note
 
-note bottom of Workers
+note bottom of Server
   数据库初始化成功后才返回可用后端。
   配置预加载只读，宿主持锁后才允许写入初始化。
-  进程隔离不等于 OS 权限沙箱。
-  新角色 / 资源通道需先扩展 Server 契约。
-  两端可复用算法源码，不保证共用二进制。
+  内置实现共享地址空间，不提供崩溃或内存隔离。
+  取消依赖协作，不能安全强杀某个插件线程。
+  用户 / 实例 / 凭据隔离仍由宿主与插件共同执行。
+  各插件独立版本；新增内置实现须构建和升级 Server。
+end note
+
+note bottom of Workers
+  仅显式配置启动，进程隔离不等于 OS 沙箱。
+  保留兼容入口不代表支持任意第三方加载。
+  C++ 外部插件仍需单独实现与验收。
 end note
 @enduml

@@ -1,42 +1,51 @@
 @startuml
-title MusicFS 默认统一插件交付与源码模块边界
+title MusicFS 官方内置主进程与源码模块边界
 skinparam componentStyle rectangle
 
 package "Server 仓库（私有）" {
-  component "Server 宿主\nHTTP / 账号归属 / 库 / 任务" as host
-  component "独立 Go SDK\n协议 / DTO / 校验 / Provider Worker" as sdk
-  component "musicfs-plugins 默认统一程序\nplugins/unified / --plugin 角色选择" as bundle
+  package "musicfs 主进程" {
+    component "Server 宿主\nHTTP / 账号归属 / 库 / 任务" as host
+    component "受信任内置装配\n每实例 / 任务独立上下文" as builtin
+  }
+  component "独立 Go SDK\n协议 / DTO / 校验 / Provider\ninprocess / tagformat / contenttransform" as sdk
+  component "可选 musicfs-plugins 程序\nplugins/unified / --plugin 角色选择" as bundle
   component "本地源 / 解码 / 刮削\nSQLite / DSP 实现" as local
+  component "analysis/chromaprint / tags/flac\nmatching/standard / transform/thumbnail" as algorithms
   package "独立在线插件 Go 模块" {
-    component "可选网易云程序" as netease
-    component "可选 QQ 音乐程序" as qq
-    component "可选 Apple Music 程序" as apple
+    component "网易云 / QQ 音乐 / Apple Music 驱动" as platforms
     component "在线装配包\nonline/unified" as unified
-    component "可选在线统一程序\nmusicfs-plugin-online" as onlinecmd
+    component "可选在线独立 / 统一程序" as onlinecmd
   }
 }
 
 host ..> sdk : 编译依赖
+host --> builtin : 固定身份 / 显式组装
+builtin ..> local : 链接内置实现
+builtin ..> unified : 链接在线实现
+builtin ..> algorithms : Go 接口注入
 bundle ..> sdk : 编译依赖
 bundle ..> local : 装配
 bundle ..> unified : 复用在线装配
-netease ..> sdk : 编译依赖
-qq ..> sdk : 编译依赖
-apple ..> sdk : 编译依赖
+platforms ..> sdk : 仅 SDK 和插件模块代码
+unified ..> platforms : 平台工厂
 unified ..> sdk : 编译依赖
 onlinecmd ..> unified : 装配
-host <--> bundle : 角色专用协议 / stdio\n每实例一个进程
+host <--> bundle : 仅 execution: process\n角色协议 / stdio
 
 note bottom of sdk
-  无 Server 实现或平台 HTTP 依赖
-  插件版本独立，协议版本严格校验
+  不反向依赖 Server 实现或平台 HTTP
+  插件发行版本独立，协议 / 算法版本另管
+  四类内置接口不等于任意第三方加载
 end note
 note bottom of host
-  生产依赖不含在线适配器
-  默认仅 Server + 一个插件文件
+  官方内置实现全部运行在主进程
+  默认仅启动 musicfs，不依赖插件可执行文件
+  共享地址空间；协作取消，不保证插件崩溃隔离
+  FFmpeg / ffprobe / fpcalc 可作为外部工具运行
 end note
 note bottom of bundle
-  九种角色启动前固定
-  独立程序仍可显式构建
+  九种兼容命令入口保留，默认不启动
+  新四类算法不增加外部进程入口
+  显式分拆构建保留独立文件
 end note
 @enduml

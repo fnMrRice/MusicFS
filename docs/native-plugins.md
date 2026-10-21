@@ -1,6 +1,6 @@
 # C++ 插件构建与边界约定
 
-状态：开发规范与待实施设计；2026-10-11。本规范适用于需要 C++ 的 MusicFS 自有插件和原生适配层，尚未提供可发布的 C++ SDK、样例工程或经过验证的平台制品。Client/Server 精确接口由各自仓库拥有，本文件不声明新的公共符号或 wire 方法已存在。
+状态：开发规范与待实施设计；2026-10-21。本规范适用于需要 C++ 的 MusicFS 自有插件和原生适配层，尚未提供可发布的 C++ SDK、样例工程或经过验证的平台制品。Server 当前官方 Go 内置插件运行在主进程；未来 C++ 内置实现遵守同一约束。Client/Server 精确接口由各自仓库拥有，本文件不声明新的公共符号或 wire 方法已存在。
 
 ## 1. 适用范围和产物
 
@@ -9,10 +9,11 @@
 | 消费方 | C++ 产物 | 接入方式 |
 | --- | --- | --- |
 | Client Rust 原生宿主 | Windows DLL、macOS dylib、Linux so | 宿主直接加载版本化 C ABI，在同一原生进程运行，不派生插件 worker |
-| Server Go 宿主 | 按 OS/CPU 构建的可执行插件 | 通过 [Server 现有控制协议](../server/docs/contracts/plugins/v1/README.md)与受授权数据通道；新 ID/角色先完成宿主注册与接口增量 |
-| 两端共用算法源码 | 同版本源码或静态库，分别构建 | 分别链接到 Client 动态库和 Server 可执行插件；入口、SDK、配置及发行清单独立 |
+| Server 官方内置实现 | 按 OS/CPU 构建并链接的算法库及受控原生适配 | 必须在 Server 主进程执行；Go 与 C++ 桥接、C ABI 和所有权契约尚待实现与验证 |
+| Server 显式外部插件 | 按 OS/CPU 构建的可执行插件 | 仅在显式进程模式使用[现有控制协议](../server/docs/contracts/plugins/v1/README.md)及受授权数据通道；新 ID/角色先完成宿主注册与接口增量 |
+| 两端共用算法源码 | 同版本源码或静态库，分别构建 | 分别链接到 Client 动态库、Server 内置桥接或显式外部插件；入口、SDK、配置及发行清单独立 |
 
-不把 Go 动态插件机制当 C++ DLL 装载器，不要求 Go 主服务直接加载 C++ 库。Server 插件进程内部若组合动态库，同样使用明确 ABI，但不因此改变 Server 对外 IPC。Client 不使用可执行插件、插件守护进程或独立音频引擎进程。
+不把 Go 动态插件机制当 C++ DLL 装载器，也不承诺已支持任意本机库加载。Server 官方内置实现通过编译时受信任装配运行，未来 C++ 桥接应先定义并验证接口；不能为内置实现隐式增加插件进程。显式外部插件若组合动态库，同样使用明确 ABI。FFmpeg、ffprobe、fpcalc 作为受控外部工具运行不属于新增插件宿主。Client 不使用可执行插件、插件守护进程或独立音频引擎进程。
 
 ## 2. CMake 和工具链基线
 
@@ -41,9 +42,16 @@ set_target_properties(musicfs_client_gain PROPERTIES
   CXX_VISIBILITY_PRESET hidden
   VISIBILITY_INLINES_HIDDEN YES)
 
-# Separate Server executable; the two targets do not share a host ABI.
-add_executable(musicfs_server_gain src/app/gain_main.cpp)
+# Server 内置算法库；主进程桥接与 ABI 需另行实现和验证。
+add_library(musicfs_server_gain STATIC src/plugins/gain/algorithm.cpp)
 musicfs_require_cpp23(musicfs_server_gain)
+
+# 外部进程入口仅作为显式选择，默认不构建。
+option(MUSICFS_BUILD_SERVER_PROCESS_PLUGIN "Build external process plugin" OFF)
+if(MUSICFS_BUILD_SERVER_PROCESS_PLUGIN)
+  add_executable(musicfs_server_gain_process src/app/gain_main.cpp)
+  musicfs_require_cpp23(musicfs_server_gain_process)
+endif()
 
 include(CTest)
 # Add real ABI, protocol and audio tests before publishing either target.
@@ -109,7 +117,7 @@ Client 新版本保存到独立目录，更新/回滚统一在下次启动切换
 
 启动故障记录只保存必要的包/版本/阶段，不假定最近加载的插件必然是崩溃原因。重复启动失败提供禁用非必需用户原生插件的恢复入口；重新启用逐项执行。恢复入口能处理下次启动，并非本次进程中的崩溃隔离。
 
-Server 保持自身[插件管理契约](../server/docs/plugins/plugin-management.md)，配置重建、任务取消和退出时收尾数据通道及插件进程，不采用 Client 的库句柄生命周期。C++ Worker 的 stdout 仅输出协议帧，英文日志写 stderr；控制面不用 C ABI 内存布局、指针、JSON/Base64 音频或自定义未经协商的 RPC。
+Server 保持自身[插件管理契约](../server/docs/plugins/plugin-management.md)，配置重建、任务取消和退出时收尾上下文、请求、租约和数据通道。内置实现共享主进程，取消是协作，超时不能证明插件代码已停止；崩溃或内存破坏可能影响整个服务，不能强杀插件线程。只有显式外部模式收尾插件进程。外部 C++ Worker 的 stdout 仅输出协议帧，英文日志写 stderr；控制面不用 C ABI 内存布局、指针、JSON/Base64 音频或未经协商的 RPC。
 
 ## 6. 支持矩阵与交付证据
 
@@ -118,10 +126,10 @@ Server 保持自身[插件管理契约](../server/docs/plugins/plugin-management
 | 平台 | OS/CPU、最低系统、工具链目标、SDK/运行库、链接方式；Client 按 Windows/macOS/Linux 独立验收，Server 按自身发行矩阵验收 |
 | 标准与构建 | 固定 CMake/编译器/标准库版本、C++23 模式、实际使用的语言/库特性；缺失即阻止该 target 发布 |
 | Client ABI | C/Rust 绑定布局、导出、错误版本、缺函数、缺依赖、实际 DSP 输出、实例/缓冲取消与释放、库持有至退出；启停/更新/回滚当前与下次启动状态一致 |
-| Server IPC | 精确 framing/Schema、握手身份、权限、超时取消、资源通道和进程回收；既有协议样本不能只有 C++ 自测 |
+| Server 原生边界 | 内置桥接须验证 ABI、所有权、取消和宿主集成；显式外部模式另验 framing/Schema、握手、权限、资源通道和进程回收，不能只有 C++ 自测 |
 | 音频 | 非零定位、格式转换、延迟/尾音、欠载、背压、连续切歌及时间轴；以宿主集成与真实输出验证 |
 | 制品 | 从干净机器加载/启动，非 ASCII/空格路径、Release 依赖和最低系统；文件摘要、来源、依赖清单与测试记录一致 |
-| 故障 | Client 测试运行允许随插件崩溃，检查下次启动恢复；Server 检查子进程失败回收。不能相互替代 |
+| 故障 | Client 原生和 Server 内置插件都按共享宿主故障边界验证下次启动恢复；Server 仅对显式外部模式检查子进程回收，不能相互替代 |
 
 编译通过不等于支持所有 C++23 功能、媒体格式或插件组合。最小编译器版本由上述实测确定；例如 MSVC 标准模式及预览状态需按采用版本核对，不能把浮动 `latest` 模式当稳定发行约定。[MSVC 标准模式](https://learn.microsoft.com/en-us/cpp/build/reference/std-specify-language-standard-version?view=msvc-170)
 
