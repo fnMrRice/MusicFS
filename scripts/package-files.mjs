@@ -11,6 +11,7 @@ const documents = new Set([
   'deploy/nginx.example.conf', 'src/metadata/identification/fingerprint/REFERENCES.md',
   // Retain the previous path so an upgrade can validate and remove old managed files.
   'src/identification/fingerprint/REFERENCES.md',
+  'sdk/go.mod', 'sdk/go.sum', 'plugins/source/online/go.mod', 'plugins/source/online/go.sum',
 ]);
 const hash = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 

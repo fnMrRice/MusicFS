@@ -166,6 +166,22 @@ test('an empty output is accepted and assembled Linux launcher is executable', t
   if (process.platform !== 'win32') assert.equal(fs.statSync(path.join(output, 'start.sh')).mode & 0o777, 0o755);
 });
 
+test('module dependency manifests are published and updated without touching plugin data', t => {
+  const { output, stage } = fixture(t);
+  const manifests = ['sdk/go.mod', 'sdk/go.sum', 'plugins/source/online/go.mod', 'plugins/source/online/go.sum'];
+  const contents = version => Object.fromEntries(manifests.map(name => [name, version + ': ' + name]));
+  publish(stage('one', 'windows', contents('one')), output);
+  const runtimeFile = path.join(output, 'plugins/source/online/account.db');
+  write(runtimeFile, 'Private runtime state');
+  publish(stage('two', 'windows', contents('two')), output);
+  const entries = verifyManifest(output);
+  for (const name of manifests) {
+    assert.ok(entries.has(name));
+    assert.equal(fs.readFileSync(path.join(output, name), 'utf8'), 'two: ' + name);
+  }
+  assert.equal(fs.readFileSync(runtimeFile, 'utf8'), 'Private runtime state');
+});
+
 test('a corrupt staged file never changes the existing runnable directory', t => {
   const { output, stage } = fixture(t);
   publish(stage(), output);
@@ -192,7 +208,8 @@ test('an incomplete or unlisted staged build never changes existing output', t =
 });
 
 for (const name of ['../outside.txt', 'web/../../outside.txt', 'web\\outside.txt', 'web/C:outside',
-  '/web/absolute.txt', 'web/trailing.', 'configs/server.yaml', 'configs/admin-token.txt', 'data/library.db']) {
+  '/web/absolute.txt', 'web/trailing.', 'configs/server.yaml', 'configs/admin-token.txt', 'data/library.db',
+  'sdk/private.txt', 'plugins/source/online/account.db']) {
   test('rejects unsafe or runtime manifest entry: ' + name, t => {
     const { output, stage } = fixture(t);
     publish(stage(), output);

@@ -26,7 +26,8 @@ if errorlevel 1 goto failed
 echo Created configs\server.yaml. Select music directories in Web settings after startup.
 
 :config_ready
-if exist "configs\server.yaml\" (
+for %%I in ("configs\server.yaml") do set "config_attributes=%%~aI"
+if /i "%config_attributes:~0,1%"=="d" (
     echo ERROR: configs\server.yaml must be a regular file.
     goto failed
 )
