@@ -1,5 +1,5 @@
 @startuml
-title Server 声道转换与 DSP 的执行顺序
+title Server 显式启用声道转换与 DSP 后的执行顺序
 left to right direction
 skinparam componentStyle rectangle
 component "授权输入\nmono / stereo / 5.1 / 7.1" as Source
@@ -23,8 +23,15 @@ note bottom of DSP
 链末输出必须匹配编码布局。
 end note
 note bottom of Channels
+audioChannels.enabled 默认 false；
+Web 本地模式始终跳过此插件和目标布局。
 下混按声道标签及固定矩阵；
 上混保留已有声道，空位补静音。
 不把双声道扩展称为真实环绕声还原。
+end note
+note top of DSP
+audioDSP.enabled 默认 false。
+Web 本地模式始终跳过音效，
+仅保留编码所需的兼容转换。
 end note
 @enduml
