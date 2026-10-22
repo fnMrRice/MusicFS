@@ -1,0 +1,32 @@
+@startuml
+title 本地音频作品库扩展（分阶段设计）
+skinparam componentStyle rectangle
+package "Server 主进程" {
+  component "内容类型注册表\n通用作品服务" as works
+  component "音乐内容插件" as music
+  component "ASMR 内容插件" as asmr
+  component "作品包识别／导入\n待实施" as importer
+  component "CUE 解析器\n仅结构与时间范围" as cue
+  component "本地文件 Provider\n目录／附件扩展待实施" as local
+  component "作品级 Scraper\n待实施" as scraper
+  component "稳定身份／授权／事务发布" as core
+  component "SQLite 后端\n表结构与迁移" as db
+  component "统一音频播放\n逻辑音轨区间支持待实施" as player
+  music --> works : 类型声明
+  asmr --> works : 类型声明
+  local --> importer : 授权文件快照
+  cue --> importer : 分轨结构
+  importer --> core : 待确认导入方案
+  scraper --> core : 作品资料候选
+  works --> core : 作品读写
+  core --> db
+  core --> player : 来源与固定资产
+}
+component "Web 通用作品列表／详情\n按服务端声明展示角色与编号" as web
+web --> works : 受鉴权 HTTP
+web --> player : 受鉴权播放
+note bottom of cue
+不访问实体光盘，不抓轨，不切割原文件。
+解析成功不代表分段播放已交付。
+end note
+@enduml

@@ -26,6 +26,8 @@ Server 使用[版本化 YAML 配置](server/docs/operations/configuration.md)，
 
 ## 设计文档
 
+- [本地音频作品库与内容插件扩展](docs/content-library.md)：音乐多碟／CUE、ASMR 作品包、插件扩展点及分阶段实施状态。
+- [作品库与类型详情页设计](docs/ui-works.md)：作品入口、音乐／ASMR详情结构和可编辑线框，明确当前资料页与后续播放能力。
 - [跨端架构设计](docs/architecture.md)
 - [跨端插件边界](docs/plugin-boundaries.md)：Client 单进程动态库、Server 官方内置主进程及显式外部模式，以及扩展前置条件。
 - [C++ 插件构建约定](docs/native-plugins.md)：需要 C++ 的插件统一 CMake/C++23，分别适配两端 SDK；设计待实施。
