@@ -47,7 +47,9 @@ Web 插件管理的“插件列表”按插件显示名称、用途、ID 和必�
 
 2026-10-21 服务端增量：官方内置 DSP 和 SQLite 与其他内置插件一起在 Server 主进程运行，显式外部模式保留专用协议。内置 DSP 提供增益、参数均衡器、压缩器、混响，保持协商后的 PCM 格式、帧数与零算法延迟，不追加曲尾；有状态定位从曲首重建后按帧裁切。独立声道转换插件属于 DSP，位于效果链前，支持立体声、5.1、7.1 输出，分别使用 MP3 或 Opus/WebM；外部 MFD1 v1 仍只接受无状态双声道节点。SQLite 属于必需存储后端，不能被禁用。数据库、声道转换与 DSP 纳入统一插件列表，只读展示配置与能力，不把配置状态表述为正在处理音频；部署配置修改后重启生效。数据库插件维护主库与实例库的 Schema 和迁移，在返回后端前完成初始化；宿主保留业务数据与事务契约、数据锁、生命周期与文件发布协调。公共播放描述报告实际声道布局、编码和处理顺序，按包含转换版本、布局和效果参数的身份隔离缓存与恢复；客户端必须协商对应 MIME，格式支持不等于音响设备已经输出物理环绕声。具体范围见 [DSP 与声道转换](../server/docs/plugins/dsp-effects.md)及[存储插件](../server/docs/plugins/storage-plugins.md)。
 
-2026-10-22 DSP 配置增量：Web「设置 → DSP 配置」支持增删效果、调整顺序、参数、声道布局和 64–16384 帧处理缓冲区。管理员可保存全局默认，用户可继承或用个人链覆盖；全局与个人链不串联，修改对下一次播放生效，当前歌曲及其定位、恢复保持原快照。插件逐节点声明输入、输出及能否继续 DSP，宿主拒绝不兼容格式或终止输出后的节点，声道转换也可在链中排序；链末必须符合所选编码布局。外部 MFD1 v1 仍限定双声道和最多 4096 帧。设置按用户隔离、以修订检查保存，缓存和时间轴身份包含缓冲区及链配置。具体接口与兼容性见 [Server DSP 配置](../server/docs/plugins/dsp-settings.md)。
+2026-10-22 Web 本地 DSP：Web「设置 → DSP 配置」默认编辑本地增益、参数均衡器、动态压缩和混响，可增删、重排、旁路效果及实时调整参数。配置仅保存在当前浏览器，按 Server 实例和账号隔离；不自动导入原服务端效果链。浏览器解码后的音频依次经过 Web Audio 效果链、可选自动音量平衡、可选切歌淡出淡入及末端音量节点，调参不重新请求播放会话或重启音频流。自动音量逐声道估计 RMS 和峰值、统一调整增益，不等同于离线 LUFS 标准化；淡出淡入先淡出当前曲目，再淡入新曲目，两项默认关闭。服务端格式转换页保留个人／全局输出声道配置，下一次播放生效；本地音效不受服务端 DSP 缓冲区设置控制。实现边界及验证见 [Web 本地 DSP](../web/docs/dsp-settings.md)。
+
+Server 保留原 DSP 实现，`audioDSP.enabled` 默认关闭，停止装配增益、均衡器、压缩、混响及外部音效插件；必要的声道转换、解密、解码和转码继续可用。Web 创建播放会话始终声明 `preferences.dspExecution=client`，Server 在会话内固定无音效的处理视图，定位与恢复也不重新应用个人、全局或部署音效链。响应 `dspExecution` 确认归属，`effectiveProcessing` 仅描述实际服务端处理；Web 拒绝未确认本地执行或仍包含服务端音效的描述，防止重复处理。本地参数变化不改变服务端表示、缓存及时间轴身份。原服务端 DSP 的插件格式验证、64–16384 帧缓冲区和不可变快照逻辑保留，显式启用后供服务端执行模式使用，详见 [Server DSP 配置](../server/docs/plugins/dsp-settings.md)及[本地音效链路](diagrams/web-local-dsp.puml)。
 
 四类新增内置算法通过 Go 接口注入：音频分析为 `plugins/analysis/chromaprint`，接入 `fingerprintworker.Extractor`；标签格式为 `plugins/tags/flac`，接入 `sdk/tagformat.Format`；匹配评分为 `plugins/matching/standard`，接入 `candidates.Scorer`；内容变换为 `plugins/transform/thumbnail`，接入 `sdk/contenttransform.Thumbnailer`。当前分别实现已有 Chromaprint 指纹、FLAC 标签重写、标准候选评分、PNG/JPEG 缩略图，不代表 BPM/调性、ID3/MP4、任意评分模型或歌词对齐已经实现。插件发行版本独立声明，但内置版本随 Server 重新构建和交付；不提供任意第三方代码加载。授权、任务、资产版本、人工确认、原件替换和结果发布仍由宿主负责。
 
@@ -183,6 +185,7 @@ NCM 由 Server 的内置 `audio.decrypt` 插件解除外层容器，保留内部
 | deliveryMode、streamUrl、expiresAt | direct / proxy / processed，短期限定权限的地址及有效期 |
 | outputProfile | codec、container、MIME、传输方式、采样率、声道和适用的码率配置 |
 | effectiveProcessing | 实际生效的处理链、参数版本与执行端；同一效果不能在两端重复应用 |
+| dspExecution | 音效执行端：client 或 server；Web 必须确认 client，必要的服务端声道转换不属于本地听感效果 |
 | seekMode、seekableRange、positionOriginMs | byteRange / timeRestart / none；以毫秒表示可定位的曲目时间范围及输出起点映射 |
 | timeline、resumeDecision | 已验证的资产间时间映射引用/版本与可自动续播、需从头播放或不可用的决定 |
 

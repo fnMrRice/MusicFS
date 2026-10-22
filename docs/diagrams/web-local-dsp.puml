@@ -1,0 +1,22 @@
+@startuml
+title Web 本地音效与服务端格式转换
+skinparam componentStyle rectangle
+package "Server" {
+  [音源 / 必要解密] --> [格式协商]
+  [格式协商] --> [原流或兼容转码\n必要声道转换]
+  note right of [格式协商]
+    dspExecution=client
+    会话、定位、恢复均跳过音效链
+    audioDSP.enabled 默认 false
+  end note
+}
+package "Web 浏览器" {
+  [原流或兼容转码\n必要声道转换] --> [媒体元素 / 浏览器解码]
+  [媒体元素 / 浏览器解码] --> [本地效果链\n增益 / EQ / 压缩 / 混响]
+  [本地效果链\n增益 / EQ / 压缩 / 混响] --> [可选自动音量平衡]
+  [可选自动音量平衡] --> [可选切歌淡出淡入]
+  [可选切歌淡出淡入] --> [末端音量 / 输出]
+  [设置页] --> [本地效果链\n增益 / EQ / 压缩 / 混响] : 实时调参 / 增删 / 重排 / 旁路
+  [设置页] --> [浏览器配置\n按实例与账号隔离] : 保存
+}
+@enduml
