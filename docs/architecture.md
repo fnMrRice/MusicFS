@@ -75,6 +75,8 @@ Server 汇集本地音乐文件、已挂载 NAS 与在线平台来源，提供�
 
 客户端按受鉴权的对象引用读取歌词、封面等内容。默认不写原始音频，允许对经过授权且支持安全写入的本地/NAS 目录启用写回。手动刮削或上传不自动开启写回；写回成功后歌曲身份和歌单关联保持，音频文件资产版本更新。独立内容文件的存储、匹配、写入和恢复机制见 Server 文档。
 
+曲目列表已接入歌手、专辑标签、流派和文件夹分类，分类集合及成员查询由 Server 在分页前完成；文件夹只返回目录名称和不透明身份，分类数量按来源曲目统计。分类内平铺来源曲目，全部曲目仍可按 Recording 聚合。列表返回可空 `coverObjectId`，Web 曲目行和播放栏读取受鉴权媒体对象。Local Files 扫描默认补齐内嵌或同名旁置封面，以实际图片像素面积、短边优选高清候选，并保留人工选用；提取文件默认保存到部署指定 `dataRoot/media/objects`，显式媒体根配置仍可覆盖，不依赖源码目录。合并版本也默认采用分辨率较高的成员封面，支持独立保存人工偏好或恢复自动，来源封面及默认播放来源不随之改变。历史曲目重新扫描并等待补齐完成后刷新列表。精确查询和保存语义见 [Server 曲库查询](../server/docs/library/catalog-query.md)及[媒体补齐](../server/docs/metadata/metadata.md#导入歌词与自动补缺)。
+
 ### 2.1 在线平台账号登录
 
 登录与业务接口优先参考开源项目中已验证的模拟客户端方式，采用相应客户端的请求路径、参数、加密/签名、设备标识及会话机制，不以仅修改 User-Agent 代替客户端适配。按平台和接口逐项验证；客户端方式不可用时可采用已验证的 Web / 官方 SDK 方式，并记录原因、参考版本和限制。具体接入与证据见 [Server 平台账号登录](../server/docs/providers/platform-login.md)。
@@ -144,8 +146,10 @@ NCM 的 SourceAsset 仍标识原始加密容器，文件大小、摘要与版本
 | POST /provider-instances/{id}/scan-jobs | 触发授权本地/NAS 来源的扫描，返回 jobId |
 | GET /scan-jobs/{id} | 扫描状态、进度、完整性、错误、执行次数、下次重试时间与上次成功时间；retry_wait等待服务端调度，paused需要处理原因后显式重提 |
 | GET /source-tracks | 用户可见来源曲目，按实例过滤与固定 libraryRevision 游标分页 |
+| GET /library/categories、GET /library/search | 歌手、专辑标签、流派、文件夹分类及曲目成员的固定快照查询 |
 | GET /search?q=...&cursor=... | 按来源部分成功，候选关联不强制折叠 |
 | GET /recordings/{id}/sources | 可选来源、音质信息与当前用户可用性 |
+| GET/PUT /recordings/{id}/cover | 读取有效成员封面，人工选用或恢复最高分辨率自动选择 |
 | GET /recommendations | 当前可用的匿名推荐聚合，保留实例出处、部分失败、有效期和stale状态；账号能力另行声明 |
 | POST/GET /playlists、GET/PUT /playlists/{id} | 本人歌单及有序聚合规则，整体编辑携带预期规则修订 |
 | POST /playlists/{id}/rebuild、GET /playlists/{id}/snapshots/{revision} | 生成聚合快照并按固定修订分页，保留所有出处 |
