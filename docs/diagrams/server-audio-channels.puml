@@ -5,18 +5,22 @@ skinparam componentStyle rectangle
 component "授权输入\nmono / stereo / 5.1 / 7.1" as Source
 component "FFmpeg 解码\n48 kHz float32 / 保留源声道布局" as Decode
 component "声道转换插件\nmusicfs.plugin.decoder.channelmix\n目标 stereo / 5.1 / 7.1" as Channels
-component "用户增益 → 配置 DSP 链\nEQ / 压缩器 / 混响\n按最终声道布局处理" as DSP
+component "用户增益 → 可编辑 DSP 链\nEQ / 压缩器 / 混响 / 声道转换\n逐节点协商输入与输出" as DSP
+component "配置选择\n个人覆盖 → 全局默认 → 部署默认\n64–16384 帧处理块" as Settings
 component "编码与封装\nstereo: MP3\n5.1 / 7.1: Opus / WebM" as Encode
 component "鉴权交付与终端\n按实际格式协商" as Client
 Source --> Decode
 Decode --> Channels
 Channels --> DSP
+Settings ..> DSP : 新会话固定快照
 DSP --> Encode
 Encode --> Client
 note bottom of DSP
 有状态定位：从曲首重建状态，
 处理后裁切至目标帧，再编码。
 不追加曲尾；不保留旧 Range。
+不可继续 DSP 的输出后禁止追加节点。
+链末输出必须匹配编码布局。
 end note
 note bottom of Channels
 下混按声道标签及固定矩阵；
