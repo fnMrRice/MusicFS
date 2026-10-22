@@ -5,9 +5,10 @@ package "Server 主进程" {
   component "内容类型注册表\n通用作品服务" as works
   component "音乐内容插件" as music
   component "ASMR 内容插件" as asmr
-  component "作品包识别／导入\n待实施" as importer
+  component "作品包预览／确认／重导入\n手动选择包边界" as importer
   component "CUE 解析器\n仅结构与时间范围" as cue
-  component "本地文件 Provider\n目录／附件扩展待实施" as local
+  component "本地文件 Provider\n授权目录／精确音频观察" as local
+  component "版本化附件读取\n图片／文本预览与下载" as attachments
   component "作品级 Scraper\n待实施" as scraper
   component "稳定身份／授权／事务发布" as core
   component "SQLite 后端\n表结构与迁移" as db
@@ -15,8 +16,11 @@ package "Server 主进程" {
   music --> works : 类型声明
   asmr --> works : 类型声明
   local --> importer : 授权文件快照
-  cue --> importer : 分轨结构
-  importer --> core : 待确认导入方案
+  music --> importer : 保留目录／自然排序
+  asmr --> importer : 保留目录／自然排序
+  cue ..> importer : 后续接入分轨结构
+  importer --> core : 完整快照／修订校验
+  attachments --> local : 当前授权／固定版本
   scraper --> core : 作品资料候选
   works --> core : 作品读写
   core --> db
@@ -24,6 +28,8 @@ package "Server 主进程" {
 }
 component "Web 通用作品列表／详情\n按服务端声明展示角色与编号" as web
 web --> works : 受鉴权 HTTP
+web --> importer : 导入预览／包树
+web --> attachments : 附件读取
 web --> player : 受鉴权播放
 note bottom of cue
 不访问实体光盘，不抓轨，不切割原文件。
