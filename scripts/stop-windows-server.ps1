@@ -27,7 +27,7 @@ if (-not [MusicFSConsoleStop]::AttachConsole($ServerProcessId)) {
     throw 'The server has no attachable console. Stop it through its launcher.'
 }
 try {
-    $consoleIds = New-Object uint[] 64
+    $consoleIds = New-Object uint32[] 64
     $consoleCount = [MusicFSConsoleStop]::GetConsoleProcessList($consoleIds, 64)
     if ($consoleCount -eq 0 -or $consoleCount -gt 64) { throw 'Cannot validate the server console.' }
     $launcher = Join-Path $deploymentPath 'start.bat'
