@@ -1,6 +1,6 @@
 # MusicFS 跨端架构设计
 
-状态：共同架构 v0.8；2026-10-21。本文定义 Server 与桌面 Client / Web 之间共同遵守的职责边界、数据语义、协议和协作流程；长期目标不代表已全部实现。本次将 Server 官方内置插件统一为主进程执行，并记录四类媒体算法的内置插件边界。Client 同进程原生动态库和 CMake/C++23 约定仍属待实施设计。当前交付及平台限制见[实施总览](implementation.md)和各实现仓库的验证记录；NFS/SMB 与 Bilibili 仍为待实现设计。
+状态：共同架构 v0.8；2026-10-21。本文定义 Server 与桌面 Client / Web 之间共同遵守的职责边界、数据语义、协议和协作流程；长期目标不代表已全部实现。本次将 Server 官方内置插件统一为主进程执行，并记录四类媒体算法的内置插件边界。Client 同进程原生动态库和 CMake/C++23 约定仍属待实施设计。当前交付及平台限制见[实施总览](implementation.md)和各实现仓库的验证记录；NFS/SMB 仍为待实现设计；Bilibili 已进入匿名公开内容接入阶段，范围见 [Bilibili 来源](../server/docs/providers/bilibili.md)。
 
 ## 1. 文档范围与仓库分工
 
@@ -39,7 +39,9 @@ Server 的 Go 插件协议与公共模型为独立 SDK 模块，仍由 Server �
 
 Server 部署配置不指定实例 `role`；角色来自插件握手的 `Manifest.roles`，宿主校验后使用。名称与译名同样由插件声明，实例配置的可选 `name` 只表示管理员别名，示例与自动发现不预填名称。管理 API 的角色字段保持兼容。
 
-Server 来源插件 ID 统一为 `musicfs.plugin.source.xxx`，解码与音频处理插件统一为 `musicfs.plugin.decoder.xxx`；本地歌词/封面插件保留 `musicfs.scraper.local`。每个插件必须在握手中提供显示别名 `plugin.name`、译名和 `supportsMultipleInstances` 声明，管理接口返回这些信息；本地音乐、FFmpeg 和 NCM 只允许一个配置实例，三个在线平台及本地歌词/封面插件支持多实例。插件实例使用稳定 UUID，与插件 ID 和显示别名分离；在线实例名称取当前已校验账号的用户名，未登录时回退插件别名。客户端按声明展示插件与账号，不以 UUID 作为标题。旧命名、UUID 迁移及配套升级要求见 [Server 插件身份与名称](../server/docs/plugins/plugin-identity.md)。
+来源插件同时声明 `sourceType: local|network`，宿主按声明选择播放路径，部署配置不能覆盖。`local` 使用文件读取及现有版本验证；`network` 只根据元数据和格式描述创建播放会话，播放器请求音频时才开始读取，不预下载校验整段音频或计算文件哈希。没有稳定字节版本的网络来源使用顺序播放，不承诺定位与断点续播。Bilibili 已接入该路径，其他在线平台仍以各自能力声明为准，见[来源播放流程](diagrams/source-playback.puml)和 [Server Bilibili 来源](../server/docs/providers/bilibili.md)。
+
+Server 来源插件 ID 统一为 `musicfs.plugin.source.xxx`，解码与音频处理插件统一为 `musicfs.plugin.decoder.xxx`；本地歌词/封面插件保留 `musicfs.scraper.local`。每个插件必须在握手中提供显示别名 `plugin.name`、译名和 `supportsMultipleInstances` 声明，管理接口返回这些信息；本地音乐、FFmpeg 和 NCM 只允许一个配置实例，四个在线平台及本地歌词/封面插件支持多实例。插件实例使用稳定 UUID，与插件 ID 和显示别名分离；在线实例名称取当前已校验账号的用户名，未登录时回退插件别名。客户端按声明展示插件与账号，不以 UUID 作为标题。旧命名、UUID 迁移及配套升级要求见 [Server 插件身份与名称](../server/docs/plugins/plugin-identity.md)。
 
 Server 插件和实例停用只保存配置，重启 Server 后生效；当前 Worker、任务、播放及新工作准入保持。启用和实例设置仍可动态应用。管理快照及操作的 `restartRequired` 与实例 `RESTART_REQUIRED` 原因区分保存意图和运行状态；待重启时 `effectiveEnabled` 按当前运行开关计算，`appliedRevision` 不推进至新修订。旧 `mode=drain/force` 仅兼容接受，不再排空或取消。客户端不得凭保存开关或操作 succeeded 宣称已经停用，见[Server 插件管理](../server/docs/plugins/plugin-management.md)。
 

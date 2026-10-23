@@ -1,0 +1,18 @@
+@startuml
+title 来源插件声明与播放路径
+start
+:校验插件握手 sourceType;
+if (来源类型) then (local)
+  :本地文件资源与版本检查;
+  :现有快照与音频处理链;
+else (network)
+  :读取元数据与音轨格式描述;
+  :创建会话，不读取音频正文;
+  :播放器请求受鉴权 streamUrl;
+  :插件按需打开受控上游;
+  :顺序代理音频，无完整预下载或哈希;
+  :无稳定字节证据则 seekMode=none;
+endif
+:复用播放器输出;
+stop
+@enduml
