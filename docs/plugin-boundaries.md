@@ -39,6 +39,8 @@ Client 已设计 Rust Plugin Host 与 C ABI，尚无可运行实现。原生插�
 
 各端插件类型及精确扩展契约分别见 [Server 插件架构](../server/docs/plugins/plugin-architecture.md)和 [Client 插件能力](../client/docs/plugin-capabilities.md)，不能把本表中的类别名直接写入现有 wire 协议。Web 继续按 Server 能力展示，不安装 C++ 插件，不读取 DLL，也不与 Server 插件通道直接通信。
 
+Server 的容器解码插件可提供音频流和独立有界附件，由宿主汇集各解码层附件并保持读取生命周期。NCM 外层封面由现有 NCM 插件读取，再由通用本地 Scraper 验证并生成容器来源候选；音频标签封面仍由 Scraper 提取，缩略图仍由内容变换插件处理。无需新增专用 NCM 封面插件，也不把外层封面重写进 MP3/FLAC。授权、来源及资产版本、候选选用与发布仍归宿主；接口和真实文件验收范围见 [Server NCM](../server/docs/playback/ncm.md)。
+
 重复识别插件负责识别规则、评分、参数和设置页面声明。Server 负责后台任务、候选存储及资产和权限复核；人工关联、解除、排除、审计与按 Recording 聚合曲库始终属于 Server 自身，不依赖识别插件启用。插件设置采用声明式控件和已注册动作，Web 通用渲染按钮、文字/数值输入、开关及下拉选择；不把任意 URL 或脚本作为设置动作。当前接入标准录音匹配插件，其他插件须实现对应 SDK 并由宿主注册，不能把设置渲染能力描述为任意第三方插件加载。
 
 以下职责保持内核模块：Server 的会话鉴权、API/事件协议及其 Schema 校验、稳定身份、业务数据与事务契约、人工结果保护、授权流网关和任务发布；Client 的 PlayerCore、Server 会话适配、安装/加载管理、配置提交、缓冲所有权、生命周期和受控启动器。可信存储后端负责具体数据库结构、初始化和迁移，成功后才返回可用后端；宿主取得数据锁后调用写入初始化，配置预加载只读且不建库。普通算法插件不能直接提交核心状态。外部 DSP 与持久化使用各自专用契约，细节见 [DSP 插件](../server/docs/plugins/dsp-plugins.md)和[存储插件](../server/docs/plugins/storage-plugins.md)。
