@@ -50,7 +50,7 @@ P7 平台账号登录为明确交付要求，当前匿名能力不满足该要�
 
 ## 3. 最小联合契约
 
-业务前缀为 `/api/v1`。Server 的 `docs/contracts/` 已保存机器可验证的定义；下表是共同契约，实现与能力范围以各端验证记录为准。
+业务前缀为 `/api/v1`。Server 的 `docs/contracts/` 已保存机器可验证的定义；下表是共同契约，实现与能力范围以各端验证记录为准。`/api/v1/control`、子协议 `musicfs.control.v1` 的 WebSocket 承载播放控制、生命周期租约、心跳与状态通知；当前 Web 已接入播放控制、心跳与通知，原生 Client 的租约和连接适配仍待实施。下表的播放 method/path 作为 WS request 内容，HTTP 路由保留管理用途。音频继续使用 HTTP streamUrl，详细协议见[控制通道](../server/docs/contracts/control-channel.md)。
 
 | API | 首次需要 | 请求和响应要点 |
 | --- | --- | --- |
@@ -84,7 +84,7 @@ P8的[生命周期协议](../server/docs/operations/lifecycle.md)由测试客户
 
 切歌代次与同曲定位意图分别管理。切歌或停止废弃旧会话，晚响应不能改变新歌状态；对仍活动的同一会话，seek/recover 共用串行控制队列，最多一个请求在途，连续定位只保留最新待执行目标。在途操作返回后，即使已有更新目标，也先记录它返回的当前 attemptId，再以该标识发起下一次操作；可以跳过中间输出的播放，不能丢弃已生效的控制状态。
 
-每次新操作使用独立 Idempotency-Key，同一操作的网络重试使用原键。中止 fetch 不代表服务端撤销；结果不明先以原键有界重试确定结果，仍不能确认则停止自动控制并提供重新播放入口，不能盲用旧 attemptId 发起新操作。Server 同时串行化会话变更，校验预期 attemptId，重放幂等结果并拒绝冲突。幂等记录的有效期必须覆盖声明的重试窗口，过期结果明确要求重建。
+每次新操作使用独立幂等键，WS request 使用 idempotencyKey，HTTP 管理入口使用 Idempotency-Key；业务层如显式重试同一操作必须使用原键。WS 断线或取消等待不代表服务端撤销；通道不自动重放已发送修改，当前 Web 对发送后断线或超时返回 OUTCOME_UNKNOWN，停止自动控制并提供重新播放入口，不能盲用旧 attemptId 发起新操作。尚未发送的 NETWORK_ERROR 可有界重试。Server 同时串行化会话变更，校验预期 attemptId，重放幂等结果并拒绝冲突。幂等记录的有效期必须覆盖声明的重试窗口，过期结果明确要求重建。
 
 同源输入/输出完全未变的授权刷新可保留尝试；更换表示、参数或生成起点必须新尝试、新地址。同源同资产且输出时间关系已验证的重建不要求 Recording；跨源续播仍需共同架构规定的三项证据。不得拼接不同文件字节，也不得在新的转码片段上设置原文件的字节偏移。
 
@@ -92,7 +92,7 @@ byteRange 仅用于真正可随机访问的稳定表示。timeRestart 通过 POS
 
 ### 3.3 同源连接与会话
 
-开发时通过 Web 开发服务器代理 `/api`；交付时以反向代理把静态页面和 API 放在同一来源。Server 可提供可选的 `--web-root` 读取已构建静态制品，便于本机验收；Web 源码不因此进入 Server Git 仓库。
+开发时通过 Web 开发服务器代理 `/api`，同时支持 `/api/v1/control` 的 WebSocket 升级；交付时以反向代理把静态页面和 API 放在同一来源并转发 Upgrade/Connection。Server 可提供可选的 `--web-root` 读取已构建静态制品，便于本机验收；Web 源码不因此进入 Server Git 仓库。
 
 最小界面允许一个简单凭据输入框。引导凭据来自显式配置或管理命令，不出现在普通服务日志、页面地址或浏览器持久存储。首次 POST /auth/session 尚无会话 CSRF，使用显式 Bearer 凭据并严格检查允许的 Origin；不能要求先持有登录后才取得的 CSRF。登录后使用 HttpOnly、SameSite=Strict 会话 Cookie；HTTPS 使用 Secure，loopback HTTP 开发例外必须显式限制。此后的状态修改（包括退出）使用会话 CSRF token 并验证 Origin，身份与流资源仍按用户/会话授权。
 

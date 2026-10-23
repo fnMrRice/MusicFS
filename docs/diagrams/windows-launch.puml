@@ -1,5 +1,5 @@
 @startuml
-title MusicFS - Client / Server 连接与生命周期协作
+title MusicFS - Client（待实现）/ Server 连接与生命周期协作
 participant "Client（任一实例）" as Client
 participant "Server 实例" as Server
 
@@ -16,13 +16,17 @@ else remote / external-local
   Client -> Server : 连接配置的 Server 地址
 end
 
-loop 尚未获得租约、未超过截止时间且无不可重试错误
+Client -> Server : 登录并升级 /api/v1/control\nCookie / Origin / musicfs.control.v1
+Client -> Server : 首帧 auth + csrfToken（5 秒内）
+Server --> Client : WS ready / instanceId / 10 秒心跳 / 30 秒超时
+
+loop 仅本机 client-managed，尚未获得租约且未超过截止时间
   Client -> Server : 等待 ready / 验证身份 / 协商协议版本
   alt 身份或协议不兼容
     Server --> Client : 身份或兼容性错误
     Client -> Client : 停止自动连接并提示处理
   else ready 且身份、协议均兼容
-    Client -> Server : 申请经过认证的客户端租约
+    Client -> Server : WS request: POST /lifecycle/leases\ninstanceId / clientId / idempotencyKey
     alt 实例已进入 draining
       Server --> Client : 拒绝新租约；要求重新发现
       Client -> Client : 有界退避后重新发现实例
@@ -45,19 +49,26 @@ end
 alt 已建立有效租约
   Client -> Client : 打开已连接界面
   loop Client 保持连接
-    Client -> Server : 租约续期
-    Server --> Client : 当前租约状态
+    Client -> Server : WS ping（每 10 秒）
+    Server --> Client : WS pong（不自动续租）
+    Client -> Server : WS request: POST /lifecycle/leases/{id}/renew\ninstanceId / sequence（每 10 秒）
+    Server --> Client : response / 当前租约状态
   end
   alt Client 正常退出
-    Client -> Server : 释放自己的租约
+    Client -> Client : 有界停止播放 / 停止续租任务
+    Client -> Server : HTTP 注销登录会话
+    Server -> Server : 撤销该会话的全部租约
+  else 保留会话而主动脱离
+    Client -> Server : WS request: POST /lifecycle/leases/{id}/release
   else Client 崩溃或失联
-    Server -> Server : 续期截止后使该租约过期
+    Server -> Server : 原续期截止后使该租约过期\n断线不立即释放，重连不延长期限
   end
   alt client-managed 且最后一个有效租约结束
     Server -> Server : 原子进入 draining，拒绝后续新租约
+    Server --> Client : lifecycle.changed（尽力发送）
     Server -> Server : 完成有界的优雅收尾
     Server -> Server : 优雅退出
-  else 仍有其他有效租约，或原始归属为 external
+  else 仍有其他有效租约，或原始归属为 standalone
     Server -> Server : 保持运行
   end
 else 超时或身份 / 协议验证失败
@@ -69,7 +80,7 @@ opt 新启动的 client-managed 实例在期限内从未建立租约
   Server -> Server : 安全回收启动资源并退出
   note right of Server
     首次租约超时回收只适用于 client-managed 实例。
-    external 实例不因无客户端或连接失败而退出。
+    standalone 实例不因无客户端或连接失败而退出。
   end note
 end
 @enduml

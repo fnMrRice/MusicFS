@@ -1,38 +1,41 @@
 @startuml
 title MusicFS - 跨端播放、定位与恢复协议
 actor "用户" as User
-participant "Native Client / Web" as Client
+participant "Native Client（待实现）/ Web" as Client
 participant "Server" as Server
 participant "授权音频来源（外部边界）" as Source
 
+Client -> Server : GET /api/v1/control 升级 WS\nCookie / Origin / musicfs.control.v1
+Client -> Server : 首帧 auth + csrfToken（5 秒内）
+Server --> Client : ready / instanceId / 心跳配置
 User -> Client : 播放录音
-Client -> Server : POST /api/v1/playback/sessions\nrecordingId / sourceTrackId + capabilities + preferences
+Client -> Server : WS request: POST /playback/sessions\nbody + idempotencyKey + id
 Server -> Server : 按能力选择资源，必要时处理音频
-Server --> Client : sessionId / attemptId / stream URL\n输出描述符、资源版本、时间轴与 seek 能力
+Server --> Client : WS response: id / status / body\nsessionId / attemptId / streamUrl / 输出描述
 
-alt 描述符允许直接播放
+alt 后续 direct 能力及描述符允许直接播放
   Client -> Source : 请求可访问且兼容的授权流
   Source --> Client : 音频
 else Server 提供原字节流
-  Client -> Server : GET stream URL + 会话授权\n仅按描述符声明的能力发送 Range
+  Client -> Server : HTTP GET streamUrl + 会话授权\n仅按描述符声明的能力发送 Range
   Server --> Client : 200 / 206 音频 + 资源版本
 else Server 提供处理后的流
-  Client -> Server : GET stream URL + 会话授权
-  Server --> Client : 符合协商输出格式的音频
+  Client -> Server : HTTP GET streamUrl + 会话授权
+  Server --> Client : 边生成边 HTTP 交付协商格式的音频
   note over Client, Server
     处理后的流不默认支持任意字节 Range。
   end note
 end
 
 opt 对处理流按时间定位且描述符声明支持
-  Client -> Server : POST /api/v1/playback/sessions/{id}/seek\npositionMs + attemptId
+  Client -> Server : WS request: POST /playback/sessions/{id}/seek\npositionMs + attemptId + idempotencyKey
   Server --> Client : new attemptId / new URL / output generation\n实际起点与时间轴映射
-  Client -> Server : 重新加载 new URL
+  Client -> Server : HTTP 重新加载 new URL
   Server --> Client : 从协商起点开始的音频
 end
 
 opt 链接过期或播放失败
-  Client -> Server : POST /api/v1/playback/sessions/{id}/recover\nfailure + positionMs + attemptId
+  Client -> Server : WS request: POST /playback/sessions/{id}/recover\nfailure + positionMs + attemptId + idempotencyKey
   Server -> Server : 统一限制同源刷新与跨源恢复次数
   alt 恢复预算耗尽
     Server --> Client : 分类错误；停止自动重试
@@ -62,4 +65,9 @@ opt 链接过期或播放失败
     end
   end
 end
+note over Client, Server
+  WS 不承载音频。断线不撤销已经受理的控制请求。
+  已发送修改结果未知时通道不自动重放；
+  Web 停止自动控制并提示重新播放。
+end note
 @enduml

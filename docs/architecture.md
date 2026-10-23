@@ -137,7 +137,7 @@ NCM 的 SourceAsset 仍标识原始加密容器，文件大小、摘要与版本
 
 ## 4. API 与事件草案
 
-业务路由前缀 `/api/v1`。错误包含 `code/message/requestId/retryAfter`，绝对时间采用 UTC ISO 8601，曲目位置和持续时间使用毫秒，列表使用游标。下面保留共同目标中的 API 族；已经交付的精确路径、字段、能力与错误码以 [Server OpenAPI](../server/docs/contracts/openapi.yaml) 为准，不能由草案路由推断接口存在。事件 Schema 不等于已实现 WebSocket 推送。
+业务路由前缀 `/api/v1`。错误包含 `code/message/requestId/retryAfter`，绝对时间采用 UTC ISO 8601，曲目位置和持续时间使用毫秒，列表使用游标。下面保留共同目标中的 API 族；已经交付的精确路径、字段、能力与错误码以 [Server OpenAPI](../server/docs/contracts/openapi.yaml) 为准，不能由草案路由推断接口存在。连接保活、播放控制、生命周期租约与状态通知统一通过 [WebSocket 控制通道](../server/docs/contracts/control-channel.md)，音频与普通数据查询继续使用 HTTP。
 
 | 路由 | 共同语义 |
 | --- | --- |
@@ -172,10 +172,12 @@ NCM 的 SourceAsset 仍标识原始加密容器，文件大小、摘要与版本
 | POST /playback/sessions/{id}/recover-source | 对当前attempt申请指定目标来源，证据适用时continue，否则promptRestart；不按指纹相似度自动推导偏移 |
 | POST /playback/sessions/{id}/seek | 对 timeRestart 输出提交 attemptId、positionMs，返回新尝试和新输出地址 |
 | GET /playback/sessions/{id}/attempts/{attemptId}/stream | 鉴权交付该次尝试的固定表示；客户端使用返回的 streamUrl，不自行拼接 |
-| GET /events | 已实现 SSE 能力变更通知；其他任务、歌单和会话事件仍为后续范围 |
+| GET /control | `musicfs.control.v1` WebSocket；播放控制、显式租约续期、心跳与能力/本机生命周期通知 |
 | GET /lifecycle、POST /lifecycle/leases及续租/释放子路径 | 本地鉴权的启动归属与多客户端租约；仅client-managed模式自动收尾，不代表桌面启动器已经实现 |
 
-创建任务、会话及可能重试的播放控制请求支持 `Idempotency-Key`；seek/recover 必须校验请求所属尝试，过期请求不能覆盖较新的播放状态。采用 `If-Match` 的修订检查失败返回 412，其他业务状态冲突使用明确的 409 错误。当前 SSE 的事件类型为 `capabilities.changed`，数据含 `revision/sequence`；首连与重连通知客户端重新读取授权来源与能力。事件不是唯一事实来源，也不包含管理员配置或凭据。其他事件的字段在 Server 交付时定义。Provider 账号无权限、来源暂不可用、客户端不支持和任务失败应分别呈现。
+客户端把表中的播放创建、停止、seek、recover、recover-source 及生命周期 method/path 放入 WS `request` 消息，path 不带 `/api/v1` 前缀；响应复用 HTTP 状态和 JSON 正文。对应 HTTP 控制路由保留为管理入口，不作为断线兼容层。升级检查登录 Cookie、允许的 Origin 及子协议，5 秒内首帧 `{type:"auth",csrfToken}` 通过后才能控制；ready 返回实例身份、10 秒心跳间隔和 30 秒消息超时，每次心跳及命令重新核验登录。
+
+创建任务、会话及可能重试的播放控制请求支持幂等键，HTTP 使用 `Idempotency-Key`，WS 使用 `idempotencyKey`；seek/recover 必须校验请求所属尝试，过期请求不能覆盖较新的播放状态。采用 `If-Match` 的修订检查失败返回 412，其他业务状态冲突使用明确的 409 错误。WS `capabilities.changed` 数据含 `revision/sequence`，首连与重连通知客户端重新读取授权来源与能力；loopback 连接另接收 `lifecycle.changed` 当前状态。原 `/events` SSE 被替代；事件不是唯一事实来源，也不包含管理员配置或凭据。其他事件的字段在 Server 交付时定义。Provider 账号无权限、来源暂不可用、客户端不支持和任务失败应分别呈现。
 
 最小 Web 首次登录用显式 Bearer 凭据和允许的 Origin 校验，取得 HttpOnly 会话 Cookie 与 CSRF token；登录后的状态修改（包括退出）校验会话 CSRF 和 Origin。原生 audio 通过同源 Cookie 访问授权流，无需把凭据放入 URL。详细边界见[联合实施契约](implementation.md#33-同源连接与会话)。
 
@@ -203,7 +205,7 @@ Web 的输出布局偏好按稳定 API 访问地址和账号保存在浏览器�
 
 本地/NAS 或需要私密请求头的来源由 Server 交付。直放地址必须允许客户端访问且不泄露账号凭据；短期播放授权仍须限制用户、资源、用途和有效期。原始字节代理只声明实际具备的 Range 能力，上游不支持时不伪造 206。处理后输出不继承原文件的字节偏移、长度或验证器；byteRange 只适用于稳定且可随机访问的输出表示。
 
-timeRestart 定位通过时间请求重新生成输出，客户端加载新的 streamUrl，按 positionOriginMs 和时间映射显示曲目进度；不能把原文件字节偏移应用到转码流。客户端忽略旧歌曲/会话的返回；同会话 seek/recover 串行执行，先确认在途操作返回的 attemptId，再执行合并后的最新定位意图。取消 HTTP 不等于撤销已发生的服务端变更，结果不明通过同键有界重试确定；细则见[联合实施契约](implementation.md#32-播放描述与客户端状态)。处理配置变化也必须协商新表示。同源输出重建在曲目时间到新输出的映射已验证且可定位时恢复，不要求该 SourceTrack 已关联 Recording；资产内容变化则必须重新验证时间关系。
+timeRestart 定位通过时间请求重新生成输出，客户端加载新的 streamUrl，按 positionOriginMs 和时间映射显示曲目进度；不能把原文件字节偏移应用到转码流。客户端忽略旧歌曲/会话的返回；同会话 seek/recover 串行执行，先确认在途操作返回的 attemptId，再执行合并后的最新定位意图。WS 断线或客户端取消等待不等于撤销已发生的服务端变更，通道不自动重放已发送修改；当前 Web 对未知结果停止自动控制并提示重新播放，业务层如显式重试必须沿用原幂等键。细则见[联合实施契约](implementation.md#32-播放描述与客户端状态)。处理配置变化也必须协商新表示。同源输出重建在曲目时间到新输出的映射已验证且可定位时恢复，不要求该 SourceTrack 已关联 Recording；资产内容变化则必须重新验证时间关系。
 
 播放失败时客户端报告 attemptId、观察到的错误与曲目时间，Server 决定有限的同源刷新或换源。浏览器不必识别上游 URL 过期的具体 HTTP 原因。恢复同时限制同源刷新次数、不同来源数（最多 3 个）及总时间预算；同次故障的重复请求不能不断重置预算。
 
@@ -231,7 +233,7 @@ timeRestart 定位通过时间请求重新生成输出，客户端加载新的 s
 
 连接须验证 MusicFS 实例身份、协议兼容性并完成授权握手，不能只看 HTTP 200；端口冲突及不兼容版本应显示明确状态。多个 Client 并发启动不能产生多个占用同一数据目录的 Server。客户端启动器内部实现见 [Client 内部架构](../client/docs/architecture.md)。
 
-Server 保留实际启动归属并维护经鉴权的 Client 租约。随 Client 启动的实例在最后一个有效租约释放后优雅退出；Client 崩溃由租约超时处理，启动后始终未建立租约的失败启动也应有界回收。独立启动的实例保持运行，不因 Client 连接/退出改变归属。停机收尾须让客户端能够看到状态，并对新的连接/租约作明确接受或拒绝，避免新 Client 误接入即将退出的实例；持久化和写任务收尾细节见 Server 文档。
+Server 保留实际启动归属并维护经鉴权的 Client 租约。Client 通过 WS request 显式申请、续期和释放；30 秒租约建议每 10 秒续期，连接 ping 不自动续租。断线宽限由原租约期限决定，重连不复活过期租约。随 Client 启动的实例在最后一个有效租约结束后优雅退出；Client 崩溃由租约超时处理，启动后始终未建立租约的失败启动也应有界回收。独立启动的实例保持运行，不因 Client 连接/退出改变归属。进入 draining 后拒绝新的租约和续租，停机状态通知尽力发送，客户端最终以连接状态和重新发现结果确认实例；持久化和写任务收尾细节见 Server 文档。原生 Client 的连接适配与启动器仍待实施。
 
 升级 managed-local Server 需协调所有活动 Client、优雅停机、数据迁移准备与新版就绪；失败保留可恢复入口，不直接覆盖运行中的程序。不兼容的独立 Server 由其部署方式管理升级，Client 仅提示，不能自动停止或接管。详见 [Windows 连接与生命周期](diagrams/windows-launch.puml)。
 

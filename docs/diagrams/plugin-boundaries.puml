@@ -39,7 +39,7 @@ rectangle "显式外部进程模式：默认不启动" as Workers {
 
 component "受控外部工具\nFFmpeg / ffprobe / fpcalc" as Tools
 
-Core --> SCore : 版本化 HTTP / 能力 / 播放协商
+Core --> SCore : HTTP 查询 / 音频\nWS 播放控制 / 能力通知
 SCore --> Audio : 授权音频流 / 固定表示
 SHost <--> Worker : execution: process\nJSON-RPC / stdio / 任务二进制通道
 Storage <--> ExternalInfrastructure : 显式外部存储 / 业务 RPC
