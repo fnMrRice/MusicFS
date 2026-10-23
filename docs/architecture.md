@@ -39,6 +39,8 @@ Server 的 Go 插件协议与公共模型为独立 SDK 模块，仍由 Server �
 
 Server 部署配置不指定实例 `role`；角色来自插件握手的 `Manifest.roles`，宿主校验后使用。名称与译名同样由插件声明，实例配置的可选 `name` 只表示管理员别名，示例与自动发现不预填名称。管理 API 的角色字段保持兼容。
 
+Server 的业务适配按可信注册能力与公共接口执行：插件提供目录配置、登录方式、资源校验规则及音频、刮削、分析、标签处理实现，宿主保留权限、调度和发布责任。新增受信任实现可以注册替换，无需在业务流程增加官方插件 ID 分支；这不包含第三方动态安装。指纹契约使用通用分析器身份，旧证据由数据库迁移归档，需显式重算，不与新身份混用；客户端与 Server 的精确变更见 [Server 插件架构](../server/docs/plugins/plugin-architecture.md)及对应协议。
+
 来源插件同时声明 `sourceType: local|network`，宿主按声明选择播放路径，部署配置不能覆盖。`local` 使用文件读取及现有版本验证；`network` 只根据元数据和格式描述创建播放会话，播放器请求音频时才开始读取，不预下载校验整段音频或计算文件哈希。没有稳定字节版本的网络来源使用顺序播放，不承诺定位与断点续播。Bilibili 已接入该路径，其他在线平台仍以各自能力声明为准，见[来源播放流程](diagrams/source-playback.puml)和 [Server Bilibili 来源](../server/docs/providers/bilibili.md)。
 
 Server 来源插件 ID 统一为 `musicfs.plugin.source.xxx`，解码与音频处理插件统一为 `musicfs.plugin.decoder.xxx`；本地歌词/封面插件保留 `musicfs.scraper.local`。每个插件必须在握手中提供显示别名 `plugin.name`、译名和 `supportsMultipleInstances` 声明，管理接口返回这些信息；本地音乐、FFmpeg 和 NCM 只允许一个配置实例，四个在线平台及本地歌词/封面插件支持多实例。插件实例使用稳定 UUID，与插件 ID 和显示别名分离；在线实例名称取当前已校验账号的用户名，未登录时回退插件别名。客户端按声明展示插件与账号，不以 UUID 作为标题。旧命名、UUID 迁移及配套升级要求见 [Server 插件身份与名称](../server/docs/plugins/plugin-identity.md)。
