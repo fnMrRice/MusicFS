@@ -2,7 +2,7 @@
 
 可自托管的音乐聚合系统，通过 Music Provider 统一管理本地音乐文件、挂载 NAS 与在线来源，提供音乐库、聚合歌单和播放；通过独立 Scraper 插件提供歌词/封面等信息的自动与手动刮削。
 
-Go Server 已提供本地扫描、授权原流、服务端处理播放、NCM、资料补全及歌单接口。启动见[Server 运行说明](server/docs/operations/running.md)，使用与能力边界见[文档导航](server/docs/README.md)，剩余验证见[待验收清单](server/docs/validation/README.md)。平台登录接口已接入，真实账号仍待验收，在线整曲交付尚未实现。本仓库维护跨端架构与共同文档，具体实现分别保存在 Server、Client、Web 仓库。
+Go Server 已提供本地扫描、授权原流、服务端处理播放、NCM、资料补全及歌单接口。启动见[Server 运行说明](server/docs/operations/running.md)，使用与能力边界见[文档导航](server/docs/README.md)，剩余验证见[待验收清单](server/docs/validation/README.md)。平台登录接口已接入，真实账号仍待验收，在线整曲交付尚未实现。本仓库维护跨端架构与共同文档，Server、桌面 Client、Web 的实现分别保存在对应仓库，Android 本地工程位于根目录 `android/`。
 
 NCM 插件接入本地扫描与播放，支持提取容器内的 MP3/FLAC；配置及限制见[NCM 说明](server/docs/playback/ncm.md)，操作见[运行说明](server/docs/operations/running.md)，验证方法见[复验指南](server/docs/validation/verification.md)。格式变体与实际输出设备仍按待验范围分别验证。
 
@@ -21,6 +21,7 @@ Server 使用[版本化 YAML 配置](server/docs/operations/configuration.md)，
 - [Server 插件实施](server/docs/plugins/plugin-architecture.md)：Local Files、音频处理、独立 Scraper 和平台 Provider。
 - [最小 Web 实施](web/docs/implementation.md)：真实列表、登录、播放控件、定位与浏览器验收。
 - [桌面 React + Tauri 实施](client/docs/implementation.md)：Rust 原生播放、可安装插件、界面复用、三平台交付与 C0—C7 验收；尚未实现。
+- [原生 Android 客户端](android/README.md)提供 Kotlin／Compose 主应用及独立 Wear OS 应用，共用 OkHttp 连接和 Media3 播放服务。
 
 源码采用 `src/`，程序入口放 `src/app/`，实现模块放在 `src/` 对应目录，测试统一放各实现仓库根目录的 `tests/`。P3 首次完成本地文件经 Web 实际播放，P4 补齐服务端解码、DSP、编码/封装及定位；基本可用交付需通过 P4 与对应 P8 验收。桌面 Client 采用独立 C0—C7 计划，原生播放协议增量、动态插件及平台能力尚待实施验证。
 
@@ -55,7 +56,8 @@ PNG、JPG、JPEG、WebP、GIF 图片使用 Git LFS 保存；克隆后需安装 G
 | [MusicFS](.) | 跨端架构、协议语义与协作图示 |
 | [MusicFS-server](server/) | 后端、来源/刮削/音频插件、存储、部署、OpenAPI 与事件协议 |
 | [MusicFS-web](web/) | Web UI、能力探测、浏览器播放适配与内部设计 |
-| [MusicFS-client](client/) | React/Tauri 桌面、Rust 原生播放器、主题/音频/外部控制插件、歌词窗口、本地启动器与内部设计；尚未实现 |
+| [MusicFS-client](client/) | 仅维护 Windows、macOS 和 Linux 桌面客户端，包括 React/Tauri、Rust 原生播放器、主题/音频/外部控制插件、歌词窗口与本地启动器；尚未实现 |
+| [Android 本地工程](android/README.md) | 手机／平板／TV 和独立手表的原生应用，远端仓库待关联 |
 
 `client/`、`server/`、`web/` 是 Git 子模块，分别关联三个独立实现仓库。本仓库记录各子模块的提交版本，以便检出一致的完整工作区。所有仓库均为私有，克隆时需要有四个仓库的读取权限。
 

@@ -4,13 +4,16 @@ top to bottom direction
 skinparam componentStyle rectangle
 
 component "MusicFS-client\nReact / Tauri + 原生音频（待实现）" as Client
+component "MusicFS Android\n手机、平板、TV 应用 / 独立 Wear OS 应用" as Android
 component "MusicFS-web\n浏览器客户端" as Web
 component "MusicFS-server" as Server
 cloud "授权音频与元数据来源\n本地文件 / 挂载 NAS / 在线来源\n规划新增：NFS / SMB 直连、Bilibili" as Sources
 
 Client --> Server : HTTP 登录 / 查询 / 媒体读取\nWS 播放控制 / 租约 / 心跳（待实现）
+Android --> Server : 各设备独立 HTTP 登录 / 查询 / 媒体读取\nWS 创建 / 停止原生播放会话
 Web --> Server : HTTP 登录 / 查询 / 媒体读取\nWS 播放控制 / 心跳
 Server --> Client : WS 响应 / 状态通知\nHTTP 授权音频流
+Server --> Android : WS 响应 / 状态通知\nHTTP 授权音频流
 Server --> Web : WS 响应 / 状态通知\nHTTP 授权音频流
 Server --> Sources : 授权读取 / 资料获取
 Client ..> Sources : 描述符允许时直接播放
@@ -19,7 +22,7 @@ Web ..> Sources : 可访问且兼容时直接播放
 note right of Server
   Server 拥有 OpenAPI、事件与播放协议。
   WS 入口 /api/v1/control，子协议 musicfs.control.v1。
-  ping 不续租；客户端显式发送续租 request。
+  桌面托管本机实例时显式续租，ping 不续租。
   协商原字节流或处理后的输出格式。
   流描述符明确资源版本、权限和 seek 能力。
 end note

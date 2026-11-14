@@ -1,6 +1,6 @@
 # MusicFS 跨端架构设计
 
-状态：共同架构 v0.8；2026-10-21。本文定义 Server 与桌面 Client / Web 之间共同遵守的职责边界、数据语义、协议和协作流程；长期目标不代表已全部实现。本次将 Server 官方内置插件统一为主进程执行，并记录四类媒体算法的内置插件边界。Client 同进程原生动态库和 CMake/C++23 约定仍属待实施设计。当前交付及平台限制见[实施总览](implementation.md)和各实现仓库的验证记录；NFS/SMB 仍为待实现设计；Bilibili 已进入匿名公开内容接入阶段，范围见 [Bilibili 来源](../server/docs/providers/bilibili.md)。
+状态：共同架构 v0.9，2026-11-14。本文定义 Server 与桌面 Client、Web、Android 之间共同遵守的职责边界、数据语义、协议和协作流程。Android 已有采用 Kotlin、Compose 与 Media3 的本地工程，设备验收另行记录。Server 官方内置插件统一在主进程执行。桌面 Client 同进程原生动态库和 CMake/C++23 约定仍属待实施设计。当前交付及平台限制见[实施总览](implementation.md)和各实现仓库的验证记录；NFS/SMB 仍为待实现设计；Bilibili 已进入匿名公开内容接入阶段，范围见 [Bilibili 来源](../server/docs/providers/bilibili.md)。
 
 ## 1. 文档范围与仓库分工
 
@@ -12,6 +12,7 @@
 | [Server 内部架构](../server/docs/architecture.md) | 音乐库、Music Provider、独立 Scraper、歌单同步、文件存储、任务、匹配与部署 |
 | [Server 音频处理](../server/docs/playback/audio-processing.md) | 解复用、解码、DSP、编码/封装插件与输出管理 |
 | [Client 内部架构](../client/docs/architecture.md) | 桌面模块、插件宿主、播放器核心、窗口与本地启动器 |
+| [Android 客户端架构](../android/docs/architecture.md) | 手机与平板共享界面、电视遥控器、独立手表应用及四端共享的原生播放服务 |
 | [Client 音频与插件](../client/docs/audio-processing.md) | WMF / FFmpeg 适配、主题、DSP、切歌淡化及外部控制 API 插件 |
 | [跨端插件边界](plugin-boundaries.md) | 可插件化范围、两端执行方式、扩展前置条件与共同验收 |
 | [C++ 插件构建约定](native-plugins.md) | 需要 C++ 的插件统一 CMake/C++23；C ABI、构建及制品验证 |
@@ -31,7 +32,9 @@ Web 右上角服务状态右侧提供任务队列，默认展示当前用户的�
 
 Server 在自身 `docs/contracts` 维护 OpenAPI、事件 Schema 和带版本的协议 SDK；各运行端维护自己的插件 SDK。协议不依赖实现语言，插件二进制不承诺跨运行端通用。桌面已选择 React/TypeScript + Tauri 2 + Rust 原生核心，目标 Windows、macOS、Linux；音频与用户插件宿主独立于 UI，具体库和平台能力尚待验证。两个界面可按版本共享协议模型、资源及适用展示组件，浏览器播放器与原生核心分别实现。阶段与 Server 原生播放协商前置项见 [Client 实现方案](../client/docs/implementation.md)，这些桌面设计不改变现有线上协议，也不代表桌面已经交付。
 
-内部文档使用相对链接，跨仓库链接依赖根目录下递归检出 `server/`、`client/`、`web/` 三个 Git 子模块的工作区布局；主仓库记录各子模块的提交版本。
+Android 工程放在根目录 `android/`，`client/` 仅维护跨平台桌面客户端。手机与平板共用自适应界面，Android TV 使用遥控器专用入口，三者由一个应用交付。Wear OS 单独打包并在手表上登录、连接 Server 和播放。四端共用协议适配、曲库与播放逻辑，各自持有本机队列和会话；Android 只使用第 7 节的 remote 模式。
+
+内部文档使用相对链接。Android 本地工程暂未关联远端，其他跨仓库链接依赖根目录下递归检出 `server/`、`client/`、`web/` 三个 Git 子模块的工作区布局；主仓库记录各子模块的提交版本。
 
 Server 使用结构化日志，默认等级为 `info`，支持 `trace/debug/info/warn/error` 与按插件覆盖。宿主和各插件分别保存日志文件，同插件多实例通过实例标识区分；旧日志按天或大小轮转，同一 UTC 日期的宿主与插件历史切片合并压缩为一个归档包，保留 30 天。管理员可通过新增日志等级接口临时调整当前进程的等级，重启后恢复部署配置；该接口不改变既有客户端协议，也不代表 Web 已提供日志设置界面。具体目录、运行时修改及敏感字段限制见 [Server 日志](../server/docs/operations/logging.md)。
 
@@ -75,7 +78,7 @@ Server 内置插件与宿主共享进程，取消和退出依靠协作，不具�
 
 作品库依次提供曲目列表、CD专辑、ASMR、电台。后面三项由独立内容插件声明。ASMR 与电台各自浏览，CD 专辑可按作品选择将已导入的音轨同时显示在普通曲目列表，默认关闭。各库共享来源身份、文件授权和播放链。当前支持本地文件、作品包目录及附件，自动包同步和 CUE 分段播放属于后续阶段。[本地音频作品库与内容插件扩展](content-library.md)
 
-Server 汇集本地音乐文件、已挂载 NAS 与在线平台来源，提供统一音乐库、歌单、来源选择和音频交付；Client / Web 负责展示、用户操作和播放。Local Files Provider 属于首版范围：这里的“本地”指 Server 可访问的文件系统，远程 Client 的本机路径不能直接交给远程 Server 读取。客户端上传或共享整首音频若需要，另行设计。
+Server 汇集本地音乐文件、已挂载 NAS 与在线平台来源，提供统一音乐库、歌单、来源选择和音频交付；桌面、Web 与 Android 客户端负责展示、用户操作和播放。Local Files Provider 属于首版范围：这里的“本地”指 Server 可访问的文件系统，远程 Client 的本机路径不能直接交给远程 Server 读取。客户端上传或共享整首音频若需要，另行设计。
 
 界面根据 Server 返回的实例与能力展示操作，不预设每个 Provider 都能搜索、扫描、登录、读取歌单或推荐歌单。网易云、QQ 音乐、Apple Music 是目标来源，这三个 Music Provider 插件必须提供对应平台的用户登录/授权能力；具体登录方式与推荐、播放、付费内容能力须逐平台验证。此项是交付要求，不代表已实现。推荐结果保留平台排序、来源、账号/匿名范围、有效期与分页状态；允许按来源分栏及部分失败。打开推荐项不自动加入用户歌单，用户选择导入或绑定后才进入歌单库；推荐列表变化不删除已导入歌单，也不触发远程写回。推荐可见不代表歌曲一定可播放。
 
@@ -195,7 +198,7 @@ NCM 的 SourceAsset 仍标识原始加密容器，文件大小、摘要与版本
 
 ## 5. 播放协商、定位与恢复
 
-Client / Web 上报实际可用的 codec、container、MIME、传输方式、定位能力及请求的处理效果。Server 选择可交付的来源与输出：兼容且无需处理时直接播放或字节代理；需要兼容处理或 DSP 时使用 Server 插件链输出。浏览器和桌面原生播放器分别协商，不预设浏览器格式支持，也不把桌面音频绑定到某个 UI 框架。
+各客户端上报实际可用的 codec、container、MIME、传输方式、定位能力及请求的处理效果。Server 选择可交付的来源与输出：兼容且无需处理时直接播放或字节代理；需要兼容处理或 DSP 时使用 Server 插件链输出。播放契约分别接受浏览器的 `htmlAudio` 和原生播放器的 `nativeHttp`，返回描述携带协商后的传输类型。Android 按本机支持的格式上报，详见 [Android 原生播放接入](../android/docs/server-playback.md)。
 
 NCM 由 Server 的内置 `audio.decrypt` 插件解除外层容器，保留内部编码字节；纯解密交付为 `proxy`，需要兼容转码或用户请求 DSP 时再进入处理链并返回 `processed`。`effectiveProcessing` 的 `ncmDecrypt` 项标明服务端解密，不能据此宣称应用了增益等 DSP。内置插件在主进程内通过独立通信流保留版本化 JSON-RPC 控制语义，显式外部模式才使用 stdio；控制面只传任务与资源描述。音频正文走独立、受任务授权约束的私有二进制通道，由 Server 管理取消与回收。Client / Web 只访问 Server 返回的受鉴权播放地址，不直接连接插件数据通道。配置、协议和已验证范围见 [Server NCM 插件](../server/docs/playback/ncm.md)，不由本节扩大其他格式或平台的实现范围。
 
@@ -237,6 +240,10 @@ timeRestart 定位通过时间请求重新生成输出，客户端加载新的 s
 
 ## 7. 本地连接、退出与升级协作
 
+同一局域网中的客户端可通过 mDNS/DNS-SD 浏览 `_musicfs._tcp.local.`。Server 用 SRV 公布实际监听端口，TXT 的 `api=1` 和 `scheme=https` 表示接入版本和协议。`origin` 指定部署允许且证书覆盖的访问地址，例如 `https://music.home.example:8443`。局域网 DNS 负责把该名称解析到 Server。服务退出后撤销发布。仅绑定回环的实例继续只供本机使用。
+
+Android 的手机、平板、TV 与手表在登录页浏览实例，用户选择后可核对或修改地址，再显式提交登录凭据。手动地址适用于外网、跨子网或组播不可达的网络。两种入口共用 TLS、实例校验和登录流程。
+
 | 连接模式 | 跨端行为 |
 | --- | --- |
 | managed-local | Client 可启动配套 Server；可连接已经运行的兼容实例，但不能改变其原始启动归属 |
@@ -261,5 +268,6 @@ Server 保留实际启动归属并维护经鉴权的 Client 租约。Client 通�
 4. NFS、SMB 各自完成真实 NAS 扫描、播放、定位、离线恢复与根身份变化验收；Bilibili 分别验证免登录视频音轨、公开收藏夹、多 P 展开和音频区曲目/独立歌单，可选私有功能另验账号隔离。不得以挂载 NAS 或一个 B 站端点成功代替全部插件验收。
 5. Server 处理输出在真实 Web 环境播放和按时间定位，桌面原生能力单独协商；DSP 不重复，跨源无法证明时间轴兼容时提示重播。
 6. 多 Client 启停、崩溃租约回收、独立 Server 保持运行、remote 无本机启动，以及不兼容版本的可恢复升级流程。
+7. Android 手机与平板调整窗口后保持播放，TV 仅用遥控器完成选曲与切歌，Wear OS 在手机关机时自行首次登录并向手表连接的耳机播放。[Android 设备验收](../android/docs/device-experiences.md)
 
 [跨端组件图](diagrams/components.puml) 展示交互边界；桌面线框与本机插件细节见 [Client 设计入口](../client/docs/design.md)。Server 的使用与能力边界见[文档导航](../server/docs/README.md)，剩余环境与功能验证见[待验收清单](../server/docs/validation/README.md)。本文保留长期架构，不将设计中的全部功能视为已实现。图示仍保留 PlantUML / Salt 源码，尚无已验证的渲染图。
