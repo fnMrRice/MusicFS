@@ -3,8 +3,10 @@ title 本地音频作品库扩展（分阶段设计）
 skinparam componentStyle rectangle
 package "Server 主进程" {
   component "内容类型注册表\n通用作品服务" as works
-  component "音乐内容插件" as music
+  component "CD 专辑插件" as cd
   component "ASMR 内容插件" as asmr
+  component "电台内容插件" as radio
+  component "普通曲目列表" as tracks
   component "作品包预览／确认／重导入\n手动选择包边界" as importer
   component "CUE 解析器\n仅结构与时间范围" as cue
   component "本地文件 Provider\n授权目录／精确音频观察" as local
@@ -13,11 +15,14 @@ package "Server 主进程" {
   component "稳定身份／授权／事务发布" as core
   component "SQLite 后端\n表结构与迁移" as db
   component "统一音频播放\n逻辑音轨区间支持待实施" as player
-  music --> works : 类型声明
+  cd --> works : 类型声明／可选曲目展示
   asmr --> works : 类型声明
+  radio --> works : 类型声明
   local --> importer : 授权文件快照
-  music --> importer : 保留目录／自然排序
+  cd --> importer : 保留目录／自然排序
   asmr --> importer : 保留目录／自然排序
+  radio --> importer : 保留目录／自然排序
+  tracks --> db : 普通音乐及开启展示的 CD 音轨
   cue ..> importer : 后续接入分轨结构
   importer --> core : 完整快照／修订校验
   attachments --> local : 当前授权／固定版本
@@ -28,6 +33,7 @@ package "Server 主进程" {
 }
 component "Web 通用作品列表／详情\n按服务端声明展示角色与编号" as web
 web --> works : 受鉴权 HTTP
+web --> tracks : 曲目／分类／计数
 web --> importer : 导入预览／包树
 web --> attachments : 附件读取
 web --> player : 受鉴权播放
