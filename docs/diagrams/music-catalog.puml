@@ -1,0 +1,52 @@
+@startuml
+title 曲目资料与播放来源
+hide circle
+skinparam linetype ortho
+
+entity "歌手" as artist {
+  * 歌手 ID
+  * 歌手名
+}
+entity "曲目署名" as credit {
+  * 曲目 ID
+  * 歌手 ID
+}
+entity "曲目" as track {
+  * 曲目 ID
+  * 曲名
+  封面地址、流派、年份、星级
+  * 添加时间
+  * 修改时间
+}
+entity "专辑" as album {
+  * 内部 ID
+  * 专辑名
+  外部专辑 ID、外部专辑标记
+  封面地址、发行商、发行日期
+}
+entity "专辑曲目" as member {
+  * 专辑 ID
+  * 曲目 ID
+}
+entity "来源" as source {
+  * 来源记录 ID
+  * 曲目 ID
+  来源插件
+  * 插件实例 ID
+  * 插件内来源 ID
+  * 添加时间
+  * 修改时间
+}
+artist ||--o{ credit
+track ||--o{ credit
+album ||--o{ member
+track ||--o{ member
+track ||--o{ source
+entity "歌单条目" as entry {
+  * 歌单 ID、条目 ID
+  * 曲目 ID
+  强制来源 ID
+}
+track ||--o{ entry
+source |o--o{ entry : 指定版本
+@enduml
