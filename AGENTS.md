@@ -20,6 +20,7 @@
 
 ## 版本库管理
 
+- 本仓库及所有子模块的提交信息使用英文，遵循 Conventional Commits 格式，例如 `feat(web): edit track metadata`。
 - 移动文件使用 `git mv`，不以重写后删除代替。
 - 未明确要求推送时，不进行 GPG 签名
 - 明确要求推送时，先对尚未推送的旧提交补签，再推送
