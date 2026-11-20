@@ -11,7 +11,7 @@ const requestedAlbum = process.argv[4];
 const output = join(root, 'web/test-results/deployed-source-visibility');
 const { request, chromium } = createRequire(join(root, 'web/package.json'))('@playwright/test');
 const result = { passed: false, ready: false, sourceOnlyAPI: false, sourceOnlyUI: false,
-  albumAPI: false, albumUI: 'skipped', detailsUI: false, editorUI: false, sourceLinkEditorUI: false,
+  albumAPI: false, albumUI: 'skipped', detailsUI: false, albumSearchUI: false, editorUI: false, sourceLinkEditorUI: false,
   sourcedSampleCount: 0, savedAlbumFieldCount: 0 };
 let api, browser, context, csrfToken, failure;
 
@@ -92,14 +92,10 @@ try {
     });
     await page.goto(`${origin}/#/library?${params}`);
     check((await albumLoaded).status() === 200, 'Web did not load the album track list');
-    await page.getByRole('button', { name: '搜索在线资料', exact: true }).waitFor();
     if (album.trackCount > 0) await page.locator('.tracks tbody tr').first().waitFor();
     const toggle = page.getByRole('button', { name: '专辑详情', exact: true });
+    await toggle.waitFor();
     check(await toggle.getAttribute('aria-expanded') === 'false', 'Album details are not collapsed initially');
-    const scrape = await page.getByRole('button', { name: '搜索在线资料', exact: true }).boundingBox();
-    const sort = await page.getByRole('combobox', { name: '曲目排序', exact: true }).boundingBox();
-    check(scrape && sort && scrape.x + scrape.width <= sort.x, 'Scraping is not placed before sorting');
-    await page.screenshot({ path: join(output, 'album-scraping-entry.png') });
     await toggle.click();
     const details = page.getByRole('region', { name: '专辑详情', exact: true });
     await details.getByText('原名', { exact: true }).waitFor();
@@ -113,6 +109,19 @@ try {
     }
     await page.screenshot({ path: join(output, 'album-details.png') });
     result.detailsUI = true;
+    const search = details.getByRole('button', { name: '搜索', exact: true });
+    const refreshButton = details.getByRole('button', { name: '刷新资料', exact: true });
+    const [searchBox, refreshBox] = await Promise.all([search.boundingBox(), refreshButton.boundingBox()]);
+    check(searchBox && refreshBox && searchBox.x + searchBox.width <= refreshBox.x &&
+      searchBox.y < refreshBox.y + refreshBox.height && refreshBox.y < searchBox.y + searchBox.height,
+      'Album search is not to the left of refresh in album details');
+    await search.click();
+    const searchDialog = page.getByRole('dialog', { name: '搜索在线资料', exact: true });
+    await searchDialog.waitFor();
+    await page.screenshot({ path: join(output, 'album-scraping-entry.png') });
+    await searchDialog.getByRole('button', { name: '关闭', exact: true }).click();
+    await searchDialog.waitFor({ state: 'hidden' });
+    result.albumSearchUI = true;
     await details.getByRole('button', { name: '编辑资料', exact: true }).click();
     const editor = page.getByRole('dialog', { name: '编辑专辑资料', exact: true });
     await editor.waitFor();
@@ -132,7 +141,7 @@ try {
     await page.keyboard.press('Escape');
     result.editorUI = true;
     if (album.sourceLinks.length) {
-      await details.getByRole('button', { name: '刷新资料', exact: true }).click();
+      await refreshButton.click();
       const refresh = page.getByRole('dialog', { name: '对比专辑资料', exact: true });
       const select = refresh.getByLabel('资料平台', { exact: true });
       check(await select.inputValue() === (album.sourceLinks.length === 1 ? album.sourceLinks[0].pluginId : ''),
