@@ -187,7 +187,7 @@ NCM 的 SourceAsset 仍标识原始加密容器，文件大小、摘要与版本
 | GET /search?q=...&cursor=... | 按来源部分成功，候选关联不强制折叠 |
 | GET /recordings/{id}/sources | 可选来源、音质信息与当前用户可用性 |
 | GET/PUT /recordings/{id}/cover | 读取有效成员封面，人工选用或恢复最高分辨率自动选择 |
-| GET /recommendations | 当前可用的匿名推荐聚合，保留实例出处、部分失败、有效期和stale状态；账号能力另行声明 |
+| GET /recommendations | 按可访问来源聚合。按服务器本地日期每日首次打开更新，其后读取当日结果。支持手动刷新，时光机可回看最近五次历史推荐。各来源保留账号范围、原有顺序和失败状态 |
 | POST/GET /playlists、GET/PUT /playlists/{id} | 本人歌单及有序聚合规则，整体编辑携带预期规则修订 |
 | POST /playlists/{id}/rebuild、GET /playlists/{id}/snapshots/{revision} | 生成聚合快照并按固定修订分页，保留所有出处 |
 | GET/POST /playlists/{id}/hidden-rules、PUT /playlists/{id}/hidden-rules/{ruleId} | 持久隐藏意图、修订更新与扩大目标时的显式确认 |
