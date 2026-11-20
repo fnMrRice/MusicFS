@@ -1,5 +1,5 @@
 @startuml
-title MusicFS 插件运行边界（Server 内置同进程；Client 尚未实现）
+title MusicFS 插件运行边界（Server 内置同进程；Client 原生插件宿主待实现）
 left to right direction
 skinparam componentStyle rectangle
 

@@ -9,10 +9,10 @@ component "MusicFS-web\n浏览器客户端" as Web
 component "MusicFS-server" as Server
 cloud "授权音频与元数据来源\n本地文件 / 挂载 NAS / 在线来源\n规划新增：NFS / SMB 直连、Bilibili" as Sources
 
-Client --> Server : HTTP 登录 / 查询 / 媒体读取\nWS 播放控制 / 租约 / 心跳（待实现）
+Client --> Server : HTTP 登录 / 查询 / 媒体读取\n短时 WS 创建和关闭播放会话\n托管租约与长连接心跳待实现
 Android --> Server : 各设备独立 HTTP 登录 / 查询 / 媒体读取\nWS 创建 / 停止原生播放会话
 Web --> Server : HTTP 登录 / 查询 / 媒体读取\nWS 播放控制 / 心跳
-Server --> Client : WS 响应 / 状态通知\nHTTP 授权音频流
+Server --> Client : WS 响应 / HTTP 授权音频流\n长连接状态订阅待实现
 Server --> Android : WS 响应 / 状态通知\nHTTP 授权音频流
 Server --> Web : WS 响应 / 状态通知\nHTTP 授权音频流
 Server --> Sources : 授权读取 / 资料获取

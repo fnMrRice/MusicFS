@@ -1,5 +1,5 @@
 @startuml
-title MusicFS - Client（待实现）/ Server 连接与生命周期协作
+title MusicFS - Client 与 Server 的连接和生命周期（桌面托管启动与租约待实现）
 participant "Client（任一实例）" as Client
 participant "Server 实例" as Server
 

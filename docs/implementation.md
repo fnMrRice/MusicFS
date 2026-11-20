@@ -51,7 +51,7 @@ P7 平台账号登录为明确交付要求，当前匿名能力不满足该要�
 
 ## 3. 最小联合契约
 
-业务前缀为 `/api/v1`。Server 的 `docs/contracts/` 已保存机器可验证的定义；下表是共同契约，实现与能力范围以各端验证记录为准。`/api/v1/control`、子协议 `musicfs.control.v1` 的 WebSocket 承载播放控制、生命周期租约、心跳与状态通知；当前 Web 已接入播放控制、心跳与通知，原生 Client 的租约和连接适配仍待实施。下表的播放 method/path 作为 WS request 内容，HTTP 路由保留管理用途。音频继续使用 HTTP streamUrl，详细协议见[控制通道](../server/docs/contracts/control-channel.md)。
+业务前缀为 `/api/v1`。Server 的 `docs/contracts/` 已保存机器可验证的定义；下表是共同契约，实现与能力范围以各端验证记录为准。`/api/v1/control`、子协议 `musicfs.control.v1` 的 WebSocket 承载播放控制、生命周期租约、心跳与状态通知。Web 已接入播放控制、心跳与通知。桌面 Client 通过短时 WS 连接创建和关闭播放会话，长连接心跳、状态订阅及本机托管租约仍待实施。下表的播放 method/path 作为 WS request 内容，HTTP 路由保留管理用途。音频继续使用 HTTP streamUrl，详细协议见[控制通道](../server/docs/contracts/control-channel.md)。
 
 | API | 首次需要 | 请求和响应要点 |
 | --- | --- | --- |

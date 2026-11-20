@@ -1,7 +1,7 @@
 @startuml
 title MusicFS - 跨端播放、定位与恢复协议
 actor "用户" as User
-participant "Native Client（待实现）/ Web" as Client
+participant "桌面 Client / Web" as Client
 participant "Server" as Server
 participant "授权音频来源（外部边界）" as Source
 
@@ -12,6 +12,10 @@ User -> Client : 播放录音
 Client -> Server : WS request: POST /playback/sessions\nbody + idempotencyKey + id
 Server -> Server : 按能力选择资源，必要时处理音频
 Server --> Client : WS response: id / status / body\nsessionId / attemptId / streamUrl / 输出描述
+note over Client, Server
+  桌面已接入 nativeHttp，支持字节范围定位和顺序播放。
+  下述按时间重建与跨源恢复是桌面端待实现的流程。
+end note
 
 alt 后续 direct 能力及描述符允许直接播放
   Client -> Source : 请求可访问且兼容的授权流
