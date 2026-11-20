@@ -134,8 +134,12 @@ try {
     if (album.sourceLinks.length) {
       await details.getByRole('button', { name: '刷新资料', exact: true }).click();
       const refresh = page.getByRole('dialog', { name: '对比专辑资料', exact: true });
-      check(await refresh.getByLabel('资料平台', { exact: true }).inputValue() === '', 'Refresh did not ask for a platform');
-      check(await refresh.getByRole('button', { name: '读取平台资料', exact: true }).isDisabled(), 'Refresh did not wait for selection');
+      const select = refresh.getByLabel('资料平台', { exact: true });
+      check(await select.inputValue() === (album.sourceLinks.length === 1 ? album.sourceLinks[0].pluginId : ''),
+        'Refresh did not present the expected platform selection');
+      const read = refresh.getByRole('button', { name: '读取平台资料', exact: true });
+      await read.waitFor();
+      check(await read.isDisabled() === (album.sourceLinks.length > 1), 'Refresh platform confirmation is incorrect');
       await page.keyboard.press('Escape');
     }
     await toggle.click();
