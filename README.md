@@ -1,94 +1,45 @@
 # MusicFS
 
-可自托管的音乐聚合系统，通过 Music Provider 统一管理本地音乐文件、挂载 NAS 与在线来源，提供音乐库、聚合歌单和播放；通过独立 Scraper 插件提供歌词/封面等信息的自动与手动刮削。
+简体中文 · [English](docs/README.en.md)
 
-Go Server 已提供本地扫描、授权原流、服务端处理播放、NCM、资料补全及歌单接口。启动见[Server 运行说明](server/docs/operations/running.md)，使用与能力边界见[文档导航](server/docs/README.md)，剩余验证见[待验收清单](server/docs/validation/README.md)。平台登录接口已接入，真实账号仍待验收，在线整曲交付尚未实现。本仓库维护跨端架构与共同文档，Server、桌面 Client、Web 的实现分别保存在对应仓库，Android 本地工程位于根目录 `android/`。
+MusicFS 是一个可自托管的音乐库。把存有音乐的目录添加到服务器，就能在浏览器里按曲目、歌手或专辑浏览和播放，整理歌单，为缺少资料的录音补上歌词、封面和曲目表。
 
-NCM 插件接入本地扫描与播放，支持提取容器内的 MP3/FLAC；配置及限制见[NCM 说明](server/docs/playback/ncm.md)，操作见[运行说明](server/docs/operations/running.md)，验证方法见[复验指南](server/docs/validation/verification.md)。格式变体与实际输出设备仍按待验范围分别验证。
+![MusicFS Web 的曲目列表与正在播放的曲目](docs/screenshots/web-library.png)
 
-Server 使用[版本化 YAML 配置](server/docs/operations/configuration.md)，支持插件动态启用、能力变更通知和修订检查；停用保存后重启生效。Local Files 目录通过管理接口持久化，YAML 限定权限。全部官方内置插件运行在 Server 主进程，账号与实例边界保留；显式外部模式才启动插件程序，FFmpeg/ffprobe/fpcalc 仍可作为受控工具运行。缺少必要配置时显示待配置，见[插件配置](server/docs/plugins/plugin-configuration.md)。
+*Web 曲库实拍，使用演示曲目和封面。*
 
-## 本地打包与启动
+## 可以用它做什么
 
-在主仓库运行 `./scripts/package.ps1` 生成 Windows 64 位安装包，或运行 `sh scripts/package.sh` 生成 Linux 64 位安装包，默认输出到根目录 `deploy/`。组合包包含 Server、统一插件程序和 Web；解压后 Windows 双击 `start.bat`，Linux 运行 `sh ./start.sh`。已有锁定 Web 依赖可加 `-SkipInstall`；构建环境、参数和配置步骤见[打包说明](docs/packaging.md)与[启动说明](docs/packaging-start.md)。
+- **整理音乐文件**。扫描本机目录或已挂载的网络共享，读取标签、内嵌封面和同名歌词文件。多份音源可以归到同一首歌，原文件保留在原处。
+- **补全专辑资料**。按名称、编号或专辑链接查找发行版，预览曲目表、封面和其他字段后再选用。[刮削插件与资料来源](https://github.com/fnMrRice/MusicFS-server/blob/main/docs/plugins/provider-api-sources.md)
+- **播放和管理歌单**。浏览器可直接播放兼容音频，或由 Server 通过 FFmpeg 转换。在线来源按平台提供不同能力，例如导入 Bilibili 公开收藏夹并播放可用音轨。[在线来源](https://github.com/fnMrRice/MusicFS-server/blob/main/docs/providers/online.md)
 
-## 实现计划
+## 从源码运行
 
-新增 [NFS/SMB NAS 插件设计](server/docs/design/nas-providers.md)与 [Bilibili 音频插件设计](server/docs/design/bilibili-provider.md)：B 站匿名访问优先，以收藏夹为主要歌单来源，并补充音频区独立歌单。当前仅完成设计与[增量实施计划](server/docs/design/nas-bilibili.md)，尚未实现；开源候选及采用边界见[参考记录](server/docs/design/nas-bilibili.md#候选依赖)。
-
-- [联合实施总览](docs/implementation.md)：P0—P8 顺序、共同 API 与验收场景。
-- [文档导航](server/docs/README.md)：工程基础、音乐库、原流与处理后播放、匹配、刮削、在线来源及交付。
-- [Server 插件实施](server/docs/plugins/plugin-architecture.md)：Local Files、音频处理、独立 Scraper 和平台 Provider。
-- [最小 Web 实施](web/docs/implementation.md)：真实列表、登录、播放控件、定位与浏览器验收。
-- [桌面 React + Tauri 实施](client/docs/implementation.md)：Rust 原生播放、可安装插件、界面复用、三平台交付与 C0—C7 验收；尚未实现。
-- [原生 Android 客户端](android/README.md)提供 Kotlin／Compose 主应用及独立 Wear OS 应用，共用 OkHttp 连接和 Media3 播放服务。
-
-源码采用 `src/`，程序入口放 `src/app/`，实现模块放在 `src/` 对应目录，测试统一放各实现仓库根目录的 `tests/`。P3 首次完成本地文件经 Web 实际播放，P4 补齐服务端解码、DSP、编码/封装及定位；基本可用交付需通过 P4 与对应 P8 验收。桌面 Client 采用独立 C0—C7 计划，原生播放协议增量、动态插件及平台能力尚待实施验证。
-
-## 设计文档
-
-- [本地音频作品库与内容插件扩展](docs/content-library.md) 涵盖 CD 专辑、ASMR、电台的独立管理及与普通曲目列表的关系。
-- [作品库与类型详情页设计](docs/ui-works.md) 说明四个入口、按专辑显示曲目的选项和各类作品详情。
-- [跨端架构设计](docs/architecture.md)
-- [跨端插件边界](docs/plugin-boundaries.md)：Client 单进程动态库、Server 官方内置主进程及显式外部模式，以及扩展前置条件。
-- [C++ 插件构建约定](docs/native-plugins.md)：需要 C++ 的插件统一 CMake/C++23，分别适配两端 SDK；设计待实施。
-- [插件运行边界图](docs/diagrams/plugin-boundaries.puml)
-- [前端 UI 设计草案](docs/ui-design.md)：共享布局、导航与用户菜单，待确认。
-- [曲目列表页设计](docs/ui-tracks.md)：分类、筛选、排序、复选框与动态加载。
-- [搜索页设计](docs/ui-search.md)：来源选择、曲目/专辑/歌手/歌单结果与动态加载。
-- [跨端组件图](docs/diagrams/components.puml)
-- [播放与来源回退](docs/diagrams/playback.puml)
-- [Windows 启动与退出流程](docs/diagrams/windows-launch.puml)
-- [Server 内部架构](server/docs/architecture.md)与[音频处理](server/docs/playback/audio-processing.md)
-- [Client 内部架构](client/docs/architecture.md)与[音频及插件](client/docs/audio-processing.md)
-- [Web 设计](web/docs/design.md)
-- [客户端线框](client/docs/prototypes/client.salt.puml)
-- [连接、插件与歌词设置线框](client/docs/prototypes/settings.salt.puml)
-
-图示使用 PlantUML，界面线框使用 PlantUML Salt；仓库保存可编辑源码。前端 UI 布局草案附有与源码一致的渲染图，其余图示以源码为准。
-
-PNG、JPG、JPEG、WebP、GIF 图片使用 Git LFS 保存；克隆后需安装 Git LFS 并运行 `git lfs pull` 获取图片内容。PUML 与设计文档保留为普通可编辑文本。深色效果图为视觉草案，生成方式与提示词保存在同目录，不代表功能已经实现。
-
-## 仓库分工
-
-| 仓库 | 职责 |
-| --- | --- |
-| [MusicFS](.) | 跨端架构、协议语义与协作图示 |
-| [MusicFS-server](server/) | 后端、来源/刮削/音频插件、存储、部署、OpenAPI 与事件协议 |
-| [MusicFS-web](web/) | Web UI、能力探测、浏览器播放适配与内部设计 |
-| [MusicFS-client](client/) | 仅维护 Windows、macOS 和 Linux 桌面客户端，包括 React/Tauri、Rust 原生播放器、主题/音频/外部控制插件、歌词窗口与本地启动器；尚未实现 |
-| [Android 本地工程](android/README.md) | 手机／平板／TV 和独立手表的原生应用，远端仓库待关联 |
-
-`client/`、`server/`、`web/` 是 Git 子模块，分别关联三个独立实现仓库。本仓库记录各子模块的提交版本，以便检出一致的完整工作区。所有仓库均为私有，克隆时需要有四个仓库的读取权限。
-
-首次克隆并递归检出所有子模块：
+构建 Web 和 Server 需要 Git LFS、Go、Node.js 和 npm。版本要求与构建参数见[打包说明](docs/packaging.md)。
 
 ```sh
+git lfs install
 git clone --recurse-submodules https://github.com/fnMrRice/MusicFS.git
+cd MusicFS
 ```
 
-已有主仓库工作区，或拉取了新的子模块版本后：
+在主仓库根目录，按系统执行以下两条命令。
 
-```sh
-git submodule update --init --recursive
-```
+| 系统 | 构建 | 启动 |
+| --- | --- | --- |
+| Windows x64（PowerShell） | `./scripts/package.ps1` | `./deploy/musicfs-windows-amd64/start.bat` |
+| Linux x64（Shell） | `sh scripts/package.sh` | `sh deploy/musicfs-linux-amd64/start.sh` |
 
-子模块默认检出主仓库记录的提交，可能处于 detached HEAD 状态；开发前需在对应子模块内切换到工作分支。实现改动先提交到对应仓库，再在主仓库提交更新后的子模块指针。发布时先推送子模块提交，再推送主仓库，确保其他开发者可以获取所记录的版本。
+打开 <http://127.0.0.1:8080>，用启动脚本生成的管理员令牌登录。进入 **设置 → 音乐源 → 本地音乐 → 添加本地目录**，从已授权的目录中选择音乐文件夹。保存后自动扫描，完成后即可在「曲目列表」点播。[首次登录、目录授权与音频工具](docs/packaging-start.md)
 
-内部链接统一使用相对路径，跨仓库跳转以以上完整工作区布局为前提。本地递归检出子模块后即可跳转；GitHub 上的深层相对链接仍不能直接跨仓库解析，请通过子模块入口访问各实现仓库。
+## 客户端与服务端
 
-## 文档维护
-
-先阅读[工作约定](AGENTS.md)。跨端协议和协作变更更新本仓库；Server、Client、Web 内部设计更新对应仓库。调整目录或文档入口时同步维护 README。文件移动、重命名使用 `git mv`，内部文档使用相对链接。
-
-## 开源项目参考
-
-在线平台插件计划参考下列项目；完整用途、许可证、核查日期和采用记录要求见 [Server README](server/README.md)。目前仅作参考，尚未引入代码或验证平台播放能力。
-
-| 平台 | 参考项目 |
+| 仓库 | 当前范围 |
 | --- | --- |
-| 网易云音乐 | [NeteaseCloudMusicApiEnhanced/api-enhanced](https://github.com/NeteaseCloudMusicApiEnhanced/api-enhanced) |
-| QQ 音乐 | [jsososo/QQMusicApi](https://github.com/jsososo/QQMusicApi) |
-| Apple Music | [zachomedia/apple-music-webplayer](https://github.com/zachomedia/apple-music-webplayer)，MusicKit 浏览器集成示例 |
+| [MusicFS-server](https://github.com/fnMrRice/MusicFS-server) | Go 服务端、曲库、播放、插件与 API 协议 |
+| [MusicFS-web](https://github.com/fnMrRice/MusicFS-web) | 浏览器端曲库、播放器、歌单和管理界面 |
+| [MusicFS-android](https://github.com/fnMrRice/MusicFS-android) | 手机、平板和 Android TV 共用主应用，Wear OS 单独安装。支持连接服务端、浏览曲库和播放 |
+| [MusicFS-client](https://github.com/fnMrRice/MusicFS-client) | Windows、macOS 和 Linux 桌面客户端的设计与线框，尚处于设计阶段 |
 
-本地 NCM 解密另参考 MIT 项目 ncmdump-go 和 ncmdump.rs 的格式布局，以 Go 标准库重写。项目、许可证链接及采用范围见 [Server README 的 NCM 参考](server/README.md)；这些格式参考没有成为运行依赖。
+本仓库记录各端的子模块版本，维护[跨端架构](docs/architecture.md)与[实施进度](docs/implementation.md)。本项目几乎完全由 AI 生成。[许可证（GPLv3）](LICENSE)
