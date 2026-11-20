@@ -55,7 +55,10 @@ try {
     assert.equal(plugin.settingsAvailable, true);
   }
   assert.ok(channelmix?.plugin.features.includes('audio-dsp'), 'Channel conversion is not categorized as DSP');
-  assert.equal(ffmpeg.version, '0.4.0');
+  const release = JSON.parse(readFileSync(join(deployment, 'release.json'), 'utf8'));
+  const codec = release.components.find(item => item.execution === 'builtin' && item.pluginId === ffmpeg.pluginId);
+  assert.ok(codec?.version, 'Codec version is missing from the release manifest');
+  assert.equal(ffmpeg.version, codec.version);
   const preferences = await get(`/plugin-settings/${ffmpeg.pluginId}`);
   assert.deepEqual(preferences.schema.fields.find(field => field.key === 'decodeOutput').options.map(option => option.value), ['native', 'pcm_f32le', 'pcm_s16le']);
   const page = await context.newPage();

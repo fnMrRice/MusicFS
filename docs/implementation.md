@@ -55,7 +55,7 @@ P7 平台账号登录为明确交付要求，当前匿名能力不满足该要�
 
 | API | 首次需要 | 请求和响应要点 |
 | --- | --- | --- |
-| GET /health/ready | P1 | product、instanceId、apiVersion、ready；仅就绪不等于已登录 |
+| GET /health/ready | P1 | product、instanceId、serverVersion、apiVersion、ready；登录状态由会话接口提供 |
 | POST /auth/session | P1 | 以 Authorization Bearer 提交管理员引导凭据，交换 HttpOnly 会话 Cookie 与 csrfToken |
 | GET /auth/session | P1 | 当前用户、权限、csrfToken、有效期；未登录 401 |
 | DELETE /auth/session | P1 | 撤销当前会话及关联授权；带 CSRF 校验 |

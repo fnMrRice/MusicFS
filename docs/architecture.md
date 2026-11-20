@@ -176,7 +176,7 @@ NCM 的 SourceAsset 仍标识原始加密容器，文件大小、摘要与版本
 
 | 路由 | 共同语义 |
 | --- | --- |
-| GET /health/live、/health/ready | 存活/就绪及必要的 MusicFS 身份、协议版本和 instanceId；就绪不代替授权握手 |
+| GET /health/live、/health/ready | 返回存活或就绪状态、MusicFS 身份、实例 ID、服务端发行版本和协议版本。授权另经会话握手。Web「设置 → 关于」展示连接的服务端版本与当前 Web 构建版本。 |
 | POST /auth/session、GET /auth/session、DELETE /auth/session | 最小 Web 的凭据交换、会话恢复与退出；流使用同源会话授权 |
 | GET /providers、/provider-instances | 用户可访问的 Music Provider 实例、能力及账号状态 |
 | GET /scrapers、/scraper-instances | 独立刮削插件、实例、能力及状态 |
