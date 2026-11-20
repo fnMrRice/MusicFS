@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const deployment = resolve(process.argv[2] ?? join(root, 'deploy/musicfs-windows-amd64'));
 const origin = new URL(process.argv[3] ?? 'http://127.0.0.1:8080').origin;
+const requestedAlbum = process.argv[4];
 const output = join(root, 'web/test-results/deployed-source-visibility');
 const { request, chromium } = createRequire(join(root, 'web/package.json'))('@playwright/test');
 const result = { passed: false, ready: false, sourceOnlyAPI: false, sourceOnlyUI: false,
@@ -49,7 +50,8 @@ try {
   result.sourceOnlyAPI = true;
   const albums = await get('/library/albums?limit=100');
   check(Array.isArray(albums.items), 'Album response is invalid');
-  const album = albums.items.find((item) => typeof item.albumId === 'string' && item.albumId.length > 0);
+  const album = requestedAlbum ? await get(`/library/albums/${encodeURIComponent(requestedAlbum)}`)
+    : albums.items.find((item) => typeof item.albumId === 'string' && item.albumId.length > 0);
   if (album) {
     check(typeof album.originalName === 'string' && album.originalName.length > 0,
       'Album original name is missing');
@@ -103,6 +105,12 @@ try {
     await details.getByText('原名', { exact: true }).waitFor();
     check(await toggle.getAttribute('aria-expanded') === 'true', 'Album details did not expand');
     check(!(await details.innerText()).includes('musicfs.scraper.'), 'Album details expose plugin identifiers');
+    check(await details.getByText('平台专辑名', { exact: true }).count() === 0, 'Album details contain a platform title');
+    check(Array.isArray(album.sourceLinks), 'Album platform links are missing');
+    for (const link of album.sourceLinks) {
+      const linked = await details.getByRole('link').evaluateAll((nodes, url) => nodes.some(node => node.href === new URL(url).href), link.url);
+      check(linked, 'A saved platform page is missing from album details');
+    }
     await page.screenshot({ path: join(output, 'album-details.png') });
     result.detailsUI = true;
     await details.getByRole('button', { name: '编辑资料', exact: true }).click();
@@ -112,12 +120,49 @@ try {
       'Album original name is editable');
     check(await editor.getByLabel('显示名', { exact: true }).inputValue() === album.name,
       'Album display name is not available for editing');
-    check(await editor.getByLabel('平台专辑页面', { exact: true }).inputValue() === (album.sourceUrl ?? ''),
-      'The saved album platform page is not available for editing');
-    await editor.getByRole('combobox', { name: '资料平台', exact: true }).waitFor();
+    const urls = editor.getByLabel('平台专辑页面', { exact: true });
+    const platforms = editor.getByRole('combobox', { name: '资料平台', exact: true });
+    check(await urls.count() === album.sourceLinks.length, 'Platform page editor count is incorrect');
+    for (const [i, link] of album.sourceLinks.entries()) {
+      check(await urls.nth(i).inputValue() === link.url && await platforms.nth(i).inputValue() === link.pluginId,
+        'A saved platform association is unavailable for editing');
+    }
+    await editor.getByRole('button', { name: '添加平台链接', exact: true }).waitFor();
     result.sourceLinkEditorUI = true;
     await page.keyboard.press('Escape');
     result.editorUI = true;
+    if (album.sourceLinks.length) {
+      await details.getByRole('button', { name: '刷新资料', exact: true }).click();
+      const refresh = page.getByRole('dialog', { name: '对比专辑资料', exact: true });
+      check(await refresh.getByLabel('资料平台', { exact: true }).inputValue() === '', 'Refresh did not ask for a platform');
+      check(await refresh.getByRole('button', { name: '读取平台资料', exact: true }).isDisabled(), 'Refresh did not wait for selection');
+      await page.keyboard.press('Escape');
+    }
+    await toggle.click();
+    const rows = page.locator('.tracks tbody tr');
+    if (await rows.count()) {
+      const first = rows.first();
+      await first.getByRole('button', { name: /的更多操作$/ }).click();
+      await page.getByRole('menuitem', { name: '搜索在线资料', exact: true }).waitFor();
+      await page.keyboard.press('Escape');
+      const expand = first.getByRole('button', { name: /^展开 .* 的来源版本$/ });
+      if (await expand.count()) {
+        await expand.click();
+        const versions = page.locator('.track-versions');
+        await versions.waitFor();
+        check(await versions.getByRole('button', { name: '搜索在线资料', exact: true }).count() === 0, 'Online search still appears on a source version');
+        await expand.click();
+      }
+    }
+    if (await rows.count() >= 2) {
+      await rows.nth(0).getByRole('checkbox').check();
+      await rows.nth(1).getByRole('checkbox').check();
+      await page.getByRole('button', { name: '合并歌曲', exact: true }).click();
+      const merge = page.getByRole('dialog', { name: '合并歌曲', exact: true });
+      check(await merge.getByRole('radio').count() === 2, 'Album merge did not show both selected tracks');
+      await page.keyboard.press('Escape');
+      result.albumMergeUI = true;
+    }
     result.albumUI = 'passed';
   }
   check(blockedWrites === 0, 'Web attempted a write during read-only verification');
