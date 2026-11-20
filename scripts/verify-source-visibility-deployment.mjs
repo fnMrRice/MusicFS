@@ -12,7 +12,7 @@ const output = join(root, 'web/test-results/deployed-source-visibility');
 const { request, chromium } = createRequire(join(root, 'web/package.json'))('@playwright/test');
 const result = { passed: false, ready: false, sourceOnlyAPI: false, sourceOnlyUI: false,
   albumAPI: false, albumUI: 'skipped', detailsUI: false, albumSearchUI: false, editorUI: false, sourceLinkEditorUI: false,
-  sourcedSampleCount: 0, savedAlbumFieldCount: 0 };
+  savedTrackListUI: 'skipped', sourcedSampleCount: 0, savedAlbumFieldCount: 0 };
 let api, browser, context, csrfToken, failure;
 
 class VerificationError extends Error {}
@@ -52,12 +52,15 @@ try {
   check(Array.isArray(albums.items), 'Album response is invalid');
   const album = requestedAlbum ? await get(`/library/albums/${encodeURIComponent(requestedAlbum)}`)
     : albums.items.find((item) => typeof item.albumId === 'string' && item.albumId.length > 0);
+  let savedTrackCount = 0;
   if (album) {
     check(typeof album.originalName === 'string' && album.originalName.length > 0,
       'Album original name is missing');
     const fields = await get(`/library/albums/${encodeURIComponent(album.albumId)}/scraped-fields`);
     check(Array.isArray(fields.items), 'Album metadata response is invalid');
     result.savedAlbumFieldCount = fields.items.length;
+    const savedTracks = fields.items.find(entry => entry.field === 'albumTracks')?.item?.tracks;
+    if (Array.isArray(savedTracks)) savedTrackCount = savedTracks.length;
     result.albumAPI = true;
   }
   browser = await chromium.launch({ channel: 'msedge', headless: true });
@@ -91,8 +94,12 @@ try {
         && url.searchParams.get('albumId') === album.albumId;
     });
     await page.goto(`${origin}/#/library?${params}`);
-    check((await albumLoaded).status() === 200, 'Web did not load the album track list');
-    if (album.trackCount > 0) await page.locator('.tracks tbody tr').first().waitFor();
+    const response = await albumLoaded;
+    check(response.status() === 200, 'Web did not load the album track list');
+    const albumTracks = await response.json();
+    check(Array.isArray(albumTracks.items), 'Album track response is invalid');
+    const rows = page.locator('table.tracks tbody tr');
+    if (albumTracks.items.length) await rows.first().waitFor();
     const toggle = page.getByRole('button', { name: '专辑详情', exact: true });
     await toggle.waitFor();
     check(await toggle.getAttribute('aria-expanded') === 'false', 'Album details are not collapsed initially');
@@ -102,6 +109,26 @@ try {
     check(await toggle.getAttribute('aria-expanded') === 'true', 'Album details did not expand');
     check(!(await details.innerText()).includes('musicfs.scraper.'), 'Album details expose plugin identifiers');
     check(await details.getByText('平台专辑名', { exact: true }).count() === 0, 'Album details contain a platform title');
+    if (savedTrackCount) {
+      const trackToggle = details.getByRole('button', { name: '曲目表', exact: true });
+      const savedTable = details.getByRole('table', { name: '专辑曲目', exact: true });
+      await trackToggle.waitFor();
+      check(await trackToggle.getAttribute('aria-expanded') === 'false' && !await savedTable.isVisible(),
+        'Saved album tracks are not collapsed initially');
+      check(await details.locator('table.tracks').count() === 0, 'Main track list is inside album details');
+      const mainListVisible = async () => !albumTracks.items.length || await rows.first().isVisible();
+      check(await mainListVisible(), 'Main track list is hidden while saved tracks are collapsed');
+      await trackToggle.click();
+      await savedTable.waitFor();
+      check(await trackToggle.getAttribute('aria-expanded') === 'true' &&
+        await savedTable.locator('tbody tr').count() === savedTrackCount, 'Saved album tracks did not expand completely');
+      check(await mainListVisible(), 'Opening saved tracks hid the main track list');
+      await trackToggle.click();
+      await savedTable.waitFor({ state: 'hidden' });
+      check(await trackToggle.getAttribute('aria-expanded') === 'false', 'Saved album tracks did not collapse again');
+      check(await mainListVisible(), 'Closing saved tracks hid the main track list');
+      result.savedTrackListUI = 'passed';
+    }
     check(Array.isArray(album.sourceLinks), 'Album platform links are missing');
     for (const link of album.sourceLinks) {
       const linked = await details.getByRole('link').evaluateAll((nodes, url) => nodes.some(node => node.href === new URL(url).href), link.url);
@@ -152,7 +179,6 @@ try {
       await page.keyboard.press('Escape');
     }
     await toggle.click();
-    const rows = page.locator('.tracks tbody tr');
     if (await rows.count()) {
       const first = rows.first();
       await first.getByRole('button', { name: /的更多操作$/ }).click();
