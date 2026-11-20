@@ -3,7 +3,7 @@ title MusicFS - 跨端协作边界
 top to bottom direction
 skinparam componentStyle rectangle
 
-component "MusicFS-client\nReact / Tauri + 原生音频（待实现）" as Client
+component "MusicFS-client\nRust / egui + 原生音频" as Client
 component "MusicFS Android\n手机、平板与 Android TV 应用" as Android
 component "MusicFS-web\n浏览器客户端" as Web
 component "MusicFS-server" as Server

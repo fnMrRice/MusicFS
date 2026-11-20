@@ -51,7 +51,7 @@ note bottom of Client
   不使用插件 Worker 或独立音频引擎进程。
   原生崩溃可影响整个 Client；库保留到进程退出。
   不提供插件卸载；启停、更新和回滚重启后生效。
-  WebView 系统辅助进程不属于插件执行模型。
+  桌面窗口与原生插件同属 Rust 宿主进程。
 end note
 
 note bottom of Server
