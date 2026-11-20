@@ -25,7 +25,7 @@ Server 已确定使用 Go。源码采用用户指定布局：各实现仓库的 
 | [Server 插件实施](../server/docs/plugins/plugin-architecture.md) | 插件协议、宿主、Local Files、音频处理、Scraper 与平台适配 |
 | [Web 实施](../web/docs/implementation.md) | 文件列表、原生播放控件和最小错误/定位交互 |
 | [Client 实施](../client/docs/implementation.md) | React/Tauri 工程、原生核心、动态插件、平台集成与独立 C0—C7 验收 |
-| [Android 架构与实施顺序](../android/docs/architecture.md) | 本地原生工程已接入曲库、播放服务和独立手表入口，各设备按场景验收。 |
+| [Android 架构与实施顺序](../android/docs/architecture.md) | 手机、平板与 Android TV 已接入曲库和原生播放服务，各设备按场景验收。 |
 
 桌面 Client 的工程、主题、原生输出、WMF、桌面歌词和本地启动器不属于下文历史 Server/Web 阶段，改由独立 C0—C7 计划实施。下文“最小 Web 不建设搜索推荐门户、歌单编辑器、刮削管理台或视觉设计系统”仅描述原阶段范围；后续 React 界面及实际状态见 Web 自身记录。
 

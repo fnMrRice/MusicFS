@@ -39,7 +39,7 @@ cd MusicFS
 | --- | --- |
 | [MusicFS-server](https://github.com/fnMrRice/MusicFS-server) | Go 服务端、曲库、播放、插件与 API 协议 |
 | [MusicFS-web](https://github.com/fnMrRice/MusicFS-web) | 浏览器端曲库、播放器、歌单和管理界面 |
-| [MusicFS-android](https://github.com/fnMrRice/MusicFS-android) | 手机、平板和 Android TV 共用主应用，Wear OS 单独安装。支持连接服务端、浏览曲库和播放 |
+| [MusicFS-android](https://github.com/fnMrRice/MusicFS-android) | 手机、平板和 Android TV 共用一个应用，可连接服务端、浏览曲库和播放音乐 |
 | [MusicFS-client](https://github.com/fnMrRice/MusicFS-client) | Windows、macOS 和 Linux 桌面客户端的设计与线框，尚处于设计阶段 |
 
 本仓库记录各端的子模块版本，维护[跨端架构](docs/architecture.md)与[实施进度](docs/implementation.md)。本项目几乎完全由 AI 生成。[许可证（GPLv3）](LICENSE)

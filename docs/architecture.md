@@ -12,7 +12,7 @@
 | [Server 内部架构](../server/docs/architecture.md) | 音乐库、Music Provider、独立 Scraper、歌单同步、文件存储、任务、匹配与部署 |
 | [Server 音频处理](../server/docs/playback/audio-processing.md) | 解复用、解码、DSP、编码/封装插件与输出管理 |
 | [Client 内部架构](../client/docs/architecture.md) | 桌面模块、插件宿主、播放器核心、窗口与本地启动器 |
-| [Android 客户端架构](../android/docs/architecture.md) | 手机与平板共享界面、电视遥控器、独立手表应用及四端共享的原生播放服务 |
+| [Android 客户端架构](../android/docs/architecture.md) | 手机与平板的自适应界面、Android TV 遥控器操作及原生播放服务 |
 | [Client 音频与插件](../client/docs/audio-processing.md) | WMF / FFmpeg 适配、主题、DSP、切歌淡化及外部控制 API 插件 |
 | [跨端插件边界](plugin-boundaries.md) | 可插件化范围、两端执行方式、扩展前置条件与共同验收 |
 | [C++ 插件构建约定](native-plugins.md) | 需要 C++ 的插件统一 CMake/C++23；C ABI、构建及制品验证 |
@@ -32,7 +32,7 @@ Web 右上角服务状态右侧提供任务队列，默认展示当前用户的�
 
 Server 在自身 `docs/contracts` 维护 OpenAPI、事件 Schema 和带版本的协议 SDK；各运行端维护自己的插件 SDK。协议不依赖实现语言，插件二进制不承诺跨运行端通用。桌面已选择 React/TypeScript + Tauri 2 + Rust 原生核心，目标 Windows、macOS、Linux；音频与用户插件宿主独立于 UI，具体库和平台能力尚待验证。两个界面可按版本共享协议模型、资源及适用展示组件，浏览器播放器与原生核心分别实现。阶段与 Server 原生播放协商前置项见 [Client 实现方案](../client/docs/implementation.md)，这些桌面设计不改变现有线上协议，也不代表桌面已经交付。
 
-Android 工程由 [MusicFS-android](https://github.com/fnMrRice/MusicFS-android) 维护，检出到 `android/`，`client/` 仅维护跨平台桌面客户端。手机与平板共用自适应界面，Android TV 使用遥控器专用入口，三者由一个应用交付。Wear OS 单独打包并在手表上登录、连接 Server 和播放。四端共用协议适配、曲库与播放逻辑，各自持有本机队列和会话；Android 只使用第 7 节的 remote 模式。
+Android 工程由 [MusicFS-android](https://github.com/fnMrRice/MusicFS-android) 维护，检出到 `android/`，`client/` 仅维护跨平台桌面客户端。手机与平板共用自适应界面，Android TV 使用遥控器专用入口。三者由一个应用交付，共用协议适配、曲库与播放逻辑。每台设备持有本机队列和会话，通过第 7 节的 remote 模式连接 Server。
 
 内部文档使用相对链接。跨仓库相对链接以递归检出 `android/`、`client/`、`server/`、`web/` 的工作区为基准。主仓库记录四个子模块的提交版本。
 
@@ -263,7 +263,7 @@ timeRestart 定位通过时间请求重新生成输出，客户端加载新的 s
 
 同一局域网中的客户端可通过 mDNS/DNS-SD 浏览 `_musicfs._tcp.local.`。Server 用 SRV 公布实际监听端口，TXT 的 `api=1` 和 `scheme=https` 表示接入版本和协议。`origin` 指定部署允许且证书覆盖的访问地址，例如 `https://music.home.example:8443`。局域网 DNS 负责把该名称解析到 Server。服务退出后撤销发布。仅绑定回环的实例继续只供本机使用。
 
-Android 的手机、平板、TV 与手表在登录页浏览实例，用户选择后可核对或修改地址，再显式提交登录凭据。手动地址适用于外网、跨子网或组播不可达的网络。两种入口共用 TLS、实例校验和登录流程。
+Android 手机、平板与 TV 在登录页浏览实例，用户选择后可核对或修改地址，再显式提交登录凭据。手动地址适用于外网、跨子网或组播不可达的网络。两种入口共用 TLS、实例校验和登录流程。
 
 | 连接模式 | 跨端行为 |
 | --- | --- |
@@ -289,6 +289,6 @@ Server 保留实际启动归属并维护经鉴权的 Client 租约。Client 通�
 4. NFS、SMB 各自完成真实 NAS 扫描、播放、定位、离线恢复与根身份变化验收；Bilibili 分别验证免登录视频音轨、公开收藏夹、多 P 展开和音频区曲目/独立歌单，可选私有功能另验账号隔离。不得以挂载 NAS 或一个 B 站端点成功代替全部插件验收。
 5. Server 处理输出在真实 Web 环境播放和按时间定位，桌面原生能力单独协商；DSP 不重复，跨源无法证明时间轴兼容时提示重播。
 6. 多 Client 启停、崩溃租约回收、独立 Server 保持运行、remote 无本机启动，以及不兼容版本的可恢复升级流程。
-7. Android 手机与平板调整窗口后保持播放，TV 仅用遥控器完成选曲与切歌，Wear OS 在手机关机时自行首次登录并向手表连接的耳机播放。[Android 设备验收](../android/docs/device-experiences.md)
+7. Android 手机与平板调整窗口后保持播放，TV 仅用遥控器完成选曲与切歌。[Android 设备验收](../android/docs/device-experiences.md)
 
 [跨端组件图](diagrams/components.puml) 展示交互边界；桌面线框与本机插件细节见 [Client 设计入口](../client/docs/design.md)。Server 的使用与能力边界见[文档导航](../server/docs/README.md)，剩余环境与功能验证见[待验收清单](../server/docs/validation/README.md)。本文保留长期架构，不将设计中的全部功能视为已实现。图示仍保留 PlantUML / Salt 源码，尚无已验证的渲染图。

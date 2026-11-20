@@ -39,7 +39,7 @@ Open <http://127.0.0.1:8080> and sign in with the administrator token generated 
 | --- | --- |
 | [MusicFS-server](https://github.com/fnMrRice/MusicFS-server) | Go server, library, playback, plugins and API contracts |
 | [MusicFS-web](https://github.com/fnMrRice/MusicFS-web) | Browser library, player, playlists and administration |
-| [MusicFS-android](https://github.com/fnMrRice/MusicFS-android) | Shared app for phones, tablets and Android TV, plus a standalone Wear OS app. Connect to a server, browse the library and play music |
+| [MusicFS-android](https://github.com/fnMrRice/MusicFS-android) | One app for phones, tablets and Android TV. Connect to a server, browse the library and play music |
 | [MusicFS-client](https://github.com/fnMrRice/MusicFS-client) | Desktop client designs and wireframes for Windows, macOS and Linux. Currently in the design stage |
 
 This repository pins the components as Git submodules and documents the [architecture](architecture.md) and [implementation status](implementation.md). This project was generated almost entirely by AI. [License (GPLv3)](../LICENSE)
