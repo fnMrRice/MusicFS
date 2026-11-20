@@ -160,6 +160,8 @@ Web 曲目列表表头全选保存当前查询的全选状态及单项排除，�
 
 插件可提供声明式设置页面：包括文字输入、数值输入、开关、下拉选择和操作按钮，由 Server 校验声明与参数，Web 统一渲染。设置和动作按插件声明分派，插件页面不承担人工关联业务，也不直接执行任意网页脚本或请求地址。具体字段、兼容规则与支持插件以 Server 的 SDK 和 OpenAPI 为准，见[插件设置](../server/docs/plugins/settings.md)、[重复识别](../server/docs/library/duplicate-detection.md)及[录音聚合曲库](../server/docs/library/recording-groups.md)。
 
+Web 插件列表为声明设置能力的插件提供独立「配置」按钮，折叠时也能打开设置弹窗。在线刮削插件自行声明网络设置，按当前用户和插件分别保存，可选择跟随服务端环境、直连或自定义 HTTP／HTTPS／SOCKS5 代理。保存后，新查询及服务端封面下载使用对应设置；请求派生独立客户端，不改变其他插件的连接方式。跟随环境读取服务端的 `HTTP_PROXY`、`HTTPS_PROXY` 和 `NO_PROXY`，具体地址限制见 [Server 在线资料刮削插件](../server/docs/metadata/online-scrapers.md)。
+
 NCM 的 SourceAsset 仍标识原始加密容器，文件大小、摘要与版本属于原文件；解密出的 MP3/FLAC 是独立播放表示，不覆盖源资产。解密表示使用自己的长度、验证器与 representationId；客户端的 Range 面向该表示，不能沿用加密文件的字节偏移。
 
 ## 4. API 与事件草案
