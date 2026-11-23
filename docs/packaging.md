@@ -8,6 +8,31 @@
 
 Windows 使用 PowerShell 5.1 或更新版本；Linux 使用 POSIX Shell。两个平台都只生成 amd64 程序，交叉编译成功不代表已在目标系统运行验证。
 
+## 按提交更新开发版本
+
+在主仓库根目录使用 Python 3.11 或更新版本执行以下命令。四个子模块需要包含各自首次声明 `0.1.0` 以来的 Git 历史。
+
+```sh
+python scripts/update-versions.py
+python scripts/update-versions.py --check
+```
+
+第一条命令从各子模块当前检出的提交重新计算并更新制品元数据。第二条只做校验，版本过期时以非零状态退出。将元数据变更用 `chore(release)` 提交到各实现仓库，再在主仓库更新子模块指针。
+
+Windows 安装了 Python 启动器时，可将命令开头的 `python` 换成 `py -3`。
+
+正式版发布前，major 固定为 0。沿第一父历史从旧到新计算，每个提交最多递增一次。
+
+| 提交 | 版本变化 |
+| --- | --- |
+| `feat`、类型后的 `!`、正文中的 `BREAKING CHANGE:` 或 `BREAKING-CHANGE:` 声明 | minor 加一，patch 归零 |
+| `fix`、`perf`、`refactor`、`revert` 或 Git 自动生成的回退提交 | patch 加一 |
+| 文档、测试、构建、样式、维护和版本同步等其他常规类型 | 保留当前版本 |
+
+例如从 `0.1.0` 开始，依次提交 `fix`、`feat`、`fix` 会得到 `0.1.1 → 0.2.0 → 0.2.1`。带类型的合并按其标题计数。Git 默认合并标题采用合入提交中的最高类别，内容相同的默认合并不递增。早期未采用规范标题的提交已按实际变更登记在脚本中。Android 的 `versionCode` 从 1 开始，每个触发版本升级的提交都加一，跨 minor 继续累计。
+
+官方插件由 Server 的构建入口按各自的实现文件和提交历史计算发行版本，规则见 [Server 开发说明](../server/docs/development/README.md)。HTTP API、插件协议和数据库迁移各自使用独立版本。
+
 ## PowerShell
 
 在主仓库执行：
