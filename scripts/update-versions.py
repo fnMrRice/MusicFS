@@ -1,6 +1,7 @@
-"""从各实现仓库的第一父提交历史更新开发版本。"""
+"""按各实现仓库的发布批次更新开发版本。"""
 
 import argparse
+from enum import IntEnum
 import json
 import os
 from pathlib import Path
@@ -12,40 +13,23 @@ import tempfile
 import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
-# 各产品第一次在制品或包元数据中声明 0.1.0 的提交。
+# 切换计算方式前已推送的快照。起始版本及 Android 构建号从对应提交读取。
 BASES = {
-    "server": "e41d040abeb6cd64b5f4e41aba559e69beacaf31",
-    "web": "b843dee8f880eca957e193ed9e83e674764f3da7",
-    "client": "ba24c810ec0e19fb7a43c3d85680954c4885b192",
-    "android": "438ac916b7b2b3f45d201d02b1e4d924f6b3acf9",
+    "server": "2d5656e5f647ff4c335a2edd2efb8c966f032006",
+    "web": "34d0a15b15a70aa06fb46f49b3bd5cda0895e142",
+    "client": "d2371443ea10ae07c2dfa456233dcc00b1f59392",
+    "android": "c1e2b224a5bd21df19ff19aa21aa3383f764627b",
 }
-# 采用 Conventional Commits 前的标题按实际改动分类；哈希对应已发布历史。
-LEGACY = {
-    "minor": {
-        "13ecc7c848fe22a6398c4598eff8a787d4b56dc4", "0e63b228d3c74f3deef5844c801f914bcfe37e29",
-        "be89a3a46cb5f466ccf440ac013c6ab05a1d9861", "0660d542dc82a88b070ad8ab72682cbf28cd434d",
-        "804d658a569e019ac5ad2d68599ba22408cecf95", "bcfe04c12db2f1a08765e25d1af214ef4f26e856",
-        "10a4d99fb88b78701284b70c7d0bca2c41aa516f", "0799279ea2944a73c7f91f20669fb9b60a430759",
-        "95ac4219d57f8ff06928051cdfe8b20ada97471b", "fdacb307179d855b7186d87a666daa65926d3a55",
-        "56bf34268a6b9a88693f8aa731d5cf11c1971906", "80ca6ccf79e31f2d1a1bf2caa7dcdc7bb7cdfebc",
-        "912e95a2c97d712d098c958d0f767d3e074c992b", "8ff03a53b3b010804ea6f0c5cf3db17bcf4dcd44",
-        "6feafa00e7797b75b448d8f69744b4c81fa9e7de", "ab5a6c3a883c1c3ae94d21e5914812b9d434c4b9",
-        "3a158bcfc55600beb5b0055ca752e40290865eea", "e010ee78fd6bfa6cb99c213b853b1ea5c05f2d69",
-        "c11a0d1ddfe5d14009d62d96d04730770564bbdc", "0b01c8b264b3c9c0094a63f52fca02a7477c6e2c",
-        "c41821044752b1ace24ee7f5410481315e19627c", "fdbb93abe2a4f971c13d54f1342291ea7a43ada7",
-        "6ac5af52ca87fee2dd205e155ef8e32a9a839323", "5440b61d4cd1b76118c7ddeaf74e34f32b990bba",
-    },
-    "patch": {
-        "2b3ad8b86d6805e56025e8cea12f30a9a4d1b82e", "66ef0dba0f7d31e07acaf79935cd23a017c9abdf",
-        "392d82b4a479826a3d32d1fbb1089e9acccfca6d",
-    },
-    "skip": {
-        "1c4024fcd2dfd3b66506d1faa8846b3da72e5242", "21a1f97fea7f0135ec649bdd782cb709da8870c5",
-        "54fd7c8b84b3f4b9dda04c6f6b1c67cc7468e116",
-    },
-}
+VERSION = r"0\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)"
+RELEASE = re.compile(rf"chore\(release\): publish v({VERSION})")
 HEADER = re.compile(r"^([a-zA-Z][a-zA-Z0-9-]*)(?:\([^()\r\n]+\))?(!)?:[ \t]+\S")
 BREAKING = re.compile(r"^BREAKING[ -]CHANGES?:[ \t]*\S", re.MULTILINE)
+
+
+class Bump(IntEnum):
+    NONE = 0
+    PATCH = 1
+    MINOR = 2
 
 
 def git(repo, *args):
@@ -53,45 +37,80 @@ def git(repo, *args):
 
 
 def history(repo, *args):
-    raw = git(repo, "log", "--format=%H%x00%P%x00%s%x00%b", "-z", *args)
+    raw = git(repo, "log", "--format=%H%x00%P%x00%B", "-z", *args)
     fields = raw.split("\0")[:-1]
-    for index in range(0, len(fields), 4):
-        yield fields[index:index + 4]
+    for index in range(0, len(fields), 3):
+        sha, parents, message = fields[index:index + 3]
+        subject, _, body = message.partition("\n")
+        yield sha, parents, subject, body
 
 
 def classify(repo, sha, parents, subject, body):
     match = HEADER.match(subject)
     if BREAKING.search(body):
-        return "minor"
+        return Bump.MINOR
     if match:
         kind = match[1].lower()
         if match[2] or kind == "feat":
-            return "minor"
-        return "patch" if kind in {"fix", "perf", "refactor", "revert"} else "skip"
-    for kind, commits in LEGACY.items():
-        if sha in commits:
-            return kind
+            return Bump.MINOR
+        return Bump.PATCH if kind in {"fix", "perf", "refactor", "revert"} else Bump.NONE
     if subject.startswith('Revert "'):
-        return "patch"
+        return Bump.PATCH
     joined = parents.split()
     if len(joined) > 1:
         first = joined[0]
         if not git(repo, "diff", "--name-only", first, sha).strip():
-            return "skip"
+            return Bump.NONE
         # Git 默认合并标题没有类型，按合入的最高类别计一次。
-        result = "skip"
+        result = Bump.NONE
         for side in joined[1:]:
             for entry in history(repo, "--first-parent", f"{first}..{side}"):
                 kind = classify(repo, *entry)
-                if kind == "minor":
+                if kind == Bump.MINOR:
                     return kind
-                if kind == "patch":
-                    result = kind
+                result = max(result, kind)
         return result
     raise ValueError(f"Unclassified commit {sha}: {subject}")
 
 
-def calculate(repo, base, tip):
+def committed_version(repo, name, revision):
+    def read(path):
+        return git(repo, "show", f"{revision}:{path}")
+
+    def field(source, pattern):
+        matches = re.findall(pattern, source, flags=re.MULTILINE)
+        if len(matches) != 1:
+            raise ValueError(f"{name} at {revision}: expected one version field matching {pattern!r}")
+        return matches[0]
+
+    code = None
+    if name == "android":
+        gradle = read("src/app/main/build.gradle.kts")
+        version = field(gradle, r'^\s*versionName = "([^"]+)"')
+        code = int(field(gradle, r"^\s*versionCode = ([0-9]+)\s*$"))
+    elif name == "server":
+        version = field(read("src/core/version/version.go"), r'^const Server = "([^"]+)"')
+    elif name == "client":
+        version = read("VERSION").strip()
+    elif name == "web":
+        version = json.loads(read("package.json"))["version"]
+    else:
+        raise ValueError(f"Unknown component: {name}")
+    if not re.fullmatch(VERSION, version):
+        raise ValueError(f"{name} at {revision}: invalid development version {version!r}")
+    return version, code
+
+
+def apply_batch(released, bump):
+    if bump == Bump.NONE:
+        return released
+    version, code = released
+    _, minor, patch = map(int, version.split("."))
+    version = f"0.{minor + 1}.0" if bump == Bump.MINOR else f"0.{minor}.{patch + 1}"
+    return version, (None if code is None else code + 1)
+
+
+def calculate(repo, base, tip, name):
     if base not in git(repo, "rev-list", "--first-parent", tip).splitlines():
         raise ValueError(f"{repo.name}: first-parent history must include {base}; fetch full history")
     revisions = f"{base}..{tip}"
@@ -99,18 +118,27 @@ def calculate(repo, base, tip):
         shallow = Path(git(repo, "rev-parse", "--path-format=absolute", "--git-path", "shallow").strip())
         if set(shallow.read_text().splitlines()).intersection(git(repo, "rev-list", revisions).splitlines()):
             raise ValueError(f"{repo.name}: history is incomplete; fetch full history")
-    minor, patch, code = 1, 0, 1
+    released = committed_version(repo, name, base)
+    pending = Bump.NONE
     for entry in history(repo, "--reverse", "--first-parent", revisions):
-        kind = classify(repo, *entry)
-        if kind == "minor":
-            minor += 1
-            patch = 0
-        elif kind == "patch":
-            patch += 1
-        else:
+        sha, _, subject, _ = entry
+        marker = RELEASE.fullmatch(subject)
+        if not marker:
+            pending = max(pending, classify(repo, *entry))
             continue
-        code += 1
-    return f"0.{minor}.{patch}", code
+        candidate = apply_batch(released, pending)
+        if marker[1] != candidate[0]:
+            raise ValueError(f"{name} at {sha}: {subject!r} does not match calculated version {candidate[0]}")
+        stale = plan_files(repo, name, *candidate, revision=sha)
+        if stale:
+            files = ", ".join(path.relative_to(repo).as_posix() for path in stale)
+            expected = candidate[0]
+            if candidate[1] is not None:
+                expected += f" (versionCode {candidate[1]})"
+            raise ValueError(f"{name} at {sha}: committed metadata in {files} does not match {expected}")
+        released = candidate
+        pending = Bump.NONE
+    return apply_batch(released, pending)
 
 
 def replace_field(text, pattern, value):
@@ -133,12 +161,17 @@ def local_lock_versions(text, names, version):
     return "[[package]]".join(blocks)
 
 
-def plan_files(repo, name, version, code):
+def plan_files(repo, name, version, code, *, revision=None):
     changes = {}
+
+    def read(filename):
+        if revision is not None:
+            return subprocess.check_output(["git", "-C", repo, "show", f"{revision}:{filename}"])
+        return (repo / filename).read_bytes()
 
     def edit(filename, transform):
         path = repo / filename
-        original = path.read_bytes()
+        original = read(filename)
         text = original.decode("utf-8").replace("\r\n", "\n")
         result = transform(text)
         if result != text:
@@ -154,10 +187,10 @@ def plan_files(repo, name, version, code):
     elif name == "server":
         edit("src/core/version/version.go", lambda t: replace_field(t, r'^(const Server = ")[^"]+', version))
     elif name == "client":
-        workspace = tomllib.loads((repo / "Cargo.toml").read_text(encoding="utf-8"))["workspace"]
+        workspace = tomllib.loads(read("Cargo.toml").decode("utf-8"))["workspace"]
         names = set()
         for member in workspace["members"]:
-            package = tomllib.loads((repo / member / "Cargo.toml").read_text(encoding="utf-8"))["package"]
+            package = tomllib.loads(read(f"{member}/Cargo.toml").decode("utf-8"))["package"]
             if package.get("version") != {"workspace": True}:
                 raise ValueError(f"{member}: expected version.workspace = true")
             names.add(package["name"])
@@ -194,7 +227,7 @@ def write_file(path, original, updated):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Recalculate development versions from Git history.")
+    parser = argparse.ArgumentParser(description="Recalculate development versions by release batch.")
     parser.add_argument("--check", action="store_true", help="Report stale versions without writing files.")
     args = parser.parse_args()
     changes = {}
@@ -204,7 +237,7 @@ def main():
         if Path(git(repo, "rev-parse", "--show-toplevel").strip()).resolve() != repo.resolve():
             raise ValueError(f"Initialize the {name} submodule before calculating versions")
         tips[repo] = git(repo, "rev-parse", "HEAD").strip()
-        version, code = calculate(repo, base, tips[repo])
+        version, code = calculate(repo, base, tips[repo], name)
         suffix = f" (versionCode {code})" if name == "android" else ""
         print(f"{name} {version}{suffix} @ {tips[repo][:12]}")
         changes.update(plan_files(repo, name, version, code))

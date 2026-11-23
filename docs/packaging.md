@@ -8,30 +8,36 @@
 
 Windows 使用 PowerShell 5.1 或更新版本；Linux 使用 POSIX Shell。两个平台都只生成 amd64 程序，交叉编译成功不代表已在目标系统运行验证。
 
-## 按提交更新开发版本
+## 按发布批次更新版本
 
-在主仓库根目录使用 Python 3.11 或更新版本执行以下命令。四个子模块需要包含各自首次声明 `0.1.0` 以来的 Git 历史。
+Server、Web、桌面端和 Android 各自发版。迁移时沿用各实现仓库上次推送的版本号。此后，各实现仓库在第一父历史上用标题为 `chore(release): publish v0.<minor>.<patch>` 的提交标记一次发布。标题中的版本、该提交内的版本元数据和本批计算结果须一致。
+
+准备完整的子模块历史，在主仓库根目录使用 Python 3.11 或更新版本计算候选版本。第一条命令写入元数据，第二条只读校验，发现不一致时返回非零状态。Windows 也可用 `py -3` 替代 `python`。
 
 ```sh
 python scripts/update-versions.py
 python scripts/update-versions.py --check
 ```
 
-第一条命令从各子模块当前检出的提交重新计算并更新制品元数据。第二条只做校验，版本过期时以非零状态退出。将元数据变更用 `chore(release)` 提交到各实现仓库，再在主仓库更新子模块指针。
+major 固定为 0。每个批次汇总上次发布以来的提交，只按其中最高级别升一次。普通 `chore(release)` 可提前同步候选版本，重复构建、计算或推送都沿用同一批次。
 
-Windows 安装了 Python 启动器时，可将命令开头的 `python` 换成 `py -3`。
-
-正式版发布前，major 固定为 0。沿第一父历史从旧到新计算，每个提交最多递增一次。
-
-| 提交 | 版本变化 |
+| 本批最高级别 | 版本变化 |
 | --- | --- |
-| `feat`、类型后的 `!`、正文中的 `BREAKING CHANGE:` 或 `BREAKING-CHANGE:` 声明 | minor 加一，patch 归零 |
+| `feat`、标题类型或作用域后的 `!`、正文中的 `BREAKING CHANGE:` 或 `BREAKING-CHANGE:` | minor 加一，patch 归零 |
 | `fix`、`perf`、`refactor`、`revert` 或 Git 自动生成的回退提交 | patch 加一 |
-| 文档、测试、构建、样式、维护和版本同步等其他常规类型 | 保留当前版本 |
+| 仅有文档、测试、构建、样式、维护或版本同步等变更 | 保留当前版本 |
 
-例如从 `0.1.0` 开始，依次提交 `fix`、`feat`、`fix` 会得到 `0.1.1 → 0.2.0 → 0.2.1`。带类型的合并按其标题计数。Git 默认合并标题采用合入提交中的最高类别，内容相同的默认合并不递增。早期未采用规范标题的提交已按实际变更登记在脚本中。Android 的 `versionCode` 从 1 开始，每个触发版本升级的提交都加一，跨 minor 继续累计。
+例如 Web 上次版本为 `0.104.1`，同批包含一个 `feat` 和多个 `fix`，候选版本为 `0.105.0`。确认发布时，用计算出的实际版本生成标记。若元数据已提前同步，`--allow-empty` 仍可记录本次发布。
 
-官方插件由 Server 的构建入口按各自的实现文件和提交历史计算发行版本，规则见 [Server 开发说明](../server/docs/development/README.md)。HTTP API、插件协议和数据库迁移各自使用独立版本。
+```sh
+git -C web add -- package.json package-lock.json public/version.json
+git -C web commit --allow-empty -m "chore(release): publish v0.105.0"
+python scripts/update-versions.py --check
+```
+
+在主仓库提交对应子模块指针。明确要求推送时，先按仓库约定为未推送提交补签，再核对并推送子模块和主仓库。
+
+Android 的 `versionCode` 在版本升级的批次加一，跨 minor 连续累计。官方插件随 Server 的发布标记划分批次，同一批多次修改某插件的实现只升一次版本。HTTP API、插件协议和数据库迁移各自使用独立版本。[Server 开发说明](../server/docs/development/README.md)
 
 ## PowerShell
 
