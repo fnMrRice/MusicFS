@@ -210,12 +210,16 @@ NCM 的 SourceAsset 仍标识原始加密容器，文件大小、摘要与版本
 | POST /playback/sessions/{id}/recover-source | 对当前attempt申请指定目标来源，证据适用时continue，否则promptRestart；不按指纹相似度自动推导偏移 |
 | POST /playback/sessions/{id}/seek | 对 timeRestart 输出提交 attemptId、positionMs，返回新尝试和新输出地址 |
 | GET /playback/sessions/{id}/attempts/{attemptId}/stream | 鉴权交付该次尝试的固定表示；客户端使用返回的 streamUrl，不自行拼接 |
-| GET /control | `musicfs.control.v1` WebSocket；播放控制、显式租约续期、心跳与能力/本机生命周期通知 |
+| GET /control | `musicfs.control.v1` WebSocket，承载播放控制、显式租约续期、心跳，以及能力、后台任务与本机生命周期通知 |
 | GET /lifecycle、POST /lifecycle/leases及续租/释放子路径 | 本地鉴权的启动归属与多客户端租约；仅client-managed模式自动收尾，不代表桌面启动器已经实现 |
 
 客户端把表中的播放创建、停止、seek、recover、recover-source 及生命周期 method/path 放入 WS `request` 消息，path 不带 `/api/v1` 前缀；响应复用 HTTP 状态和 JSON 正文。对应 HTTP 控制路由保留为管理入口，不作为断线兼容层。升级检查登录 Cookie、允许的 Origin 及子协议，5 秒内首帧 `{type:"auth",csrfToken}` 通过后才能控制；ready 返回实例身份、10 秒心跳间隔和 30 秒消息超时，每次心跳及命令重新核验登录。
 
-创建任务、会话及可能重试的播放控制请求支持幂等键，HTTP 使用 `Idempotency-Key`，WS 使用 `idempotencyKey`；seek/recover 必须校验请求所属尝试，过期请求不能覆盖较新的播放状态。采用 `If-Match` 的修订检查失败返回 412，其他业务状态冲突使用明确的 409 错误。WS `capabilities.changed` 数据含 `revision/sequence`，首连与重连通知客户端重新读取授权来源与能力；loopback 连接另接收 `lifecycle.changed` 当前状态。原 `/events` SSE 被替代；事件不是唯一事实来源，也不包含管理员配置或凭据。其他事件的字段在 Server 交付时定义。Provider 账号无权限、来源暂不可用、客户端不支持和任务失败应分别呈现。
+创建任务、会话及可能重试的播放控制请求支持幂等键，HTTP 使用 `Idempotency-Key`，WS 使用 `idempotencyKey`。seek/recover 必须校验请求所属尝试，过期请求不能覆盖较新的播放状态。采用 `If-Match` 的修订检查失败返回 412，其他业务状态冲突使用明确的 409 错误。WS `capabilities.changed` 数据含 `revision/sequence`，用于刷新授权来源、能力和待确认的插件配置操作。loopback 连接另接收 `lifecycle.changed` 当前状态。
+
+Web 和桌面 Client 在收到 `activity.changed` 后，按资源种类重新读取正在跟踪的状态。Web 跟踪扫描、元数据刷新队列、插件任务与远程歌单同步，桌面设置页跟踪扫描和插件任务。命令行扫描脚本也通过同一通知等待已提交的任务结束。服务端按账号权限合并通知，客户端首次读取和重连后的补读均使用已授权的 HTTP 接口。第三方扫码授权按平台给出的间隔确认登录结果。
+
+WebSocket 已取代原 `/events` SSE。通知只携带公开状态或资源变更提示，管理员配置及凭据留在对应授权接口。Provider 账号无权限、来源暂不可用、客户端不支持和任务失败应分别呈现。
 
 最小 Web 首次登录用显式 Bearer 凭据和允许的 Origin 校验，取得 HttpOnly 会话 Cookie 与 CSRF token；登录后的状态修改（包括退出）校验会话 CSRF 和 Origin。原生 audio 通过同源 Cookie 访问授权流，无需把凭据放入 URL。详细边界见[联合实施契约](implementation.md#33-同源连接与会话)。
 
