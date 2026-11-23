@@ -12,7 +12,7 @@ Server 当前范围包括本地/NCM 播放、识别、媒体与受限写回、�
 
 2026-10-21 插件增量：按[跨端插件边界](plugin-boundaries.md)拆分可替换能力；Server 官方内置插件统一在主进程运行，新增指纹、FLAC 标签、标准评分及缩略图插件，显式外部模式保留兼容进程入口。Client 单进程原生动态库及 [CMake/C++23](native-plugins.md) 接入仍待实施。各接口、算法与平台制品分别验证，不代表任意第三方插件已开放；本增量不改写下文历史阶段记录。
 
-桌面端采用 Rust 原生界面，使用 egui/eframe 维护窗口，接入 `nativeHttp` 并通过本机设备播放。曲库布局参考 Web，迷你播放器和歌词窗口共用原生播放时钟。[桌面实现方案](../client/docs/implementation.md) · [桌面验收记录](../client/docs/validation/desktop.md)。
+桌面端采用 Rust 原生界面，使用 egui/eframe 维护窗口，接入 `nativeHttp` 并通过本机设备播放。迷你播放器和歌词窗口共用原生播放时钟。曲库、收藏和歌单使用逻辑曲目 ID，可跟随默认来源或固定一个版本。桌面端支持按来源搜索、检查重复录音、合并专辑曲目，以及在本机系统凭据库保存当前登录。音乐源、插件、播放处理和声道输出可在原生设置页管理。[桌面实现方案](../client/docs/implementation.md) · [桌面验收记录](../client/docs/validation/desktop.md)。
 
 新增设计增量：[NAS / Bilibili 插件实施计划](../server/docs/design/nas-bilibili.md)，全部待实现。NFS/SMB 原生直连分别交付；B 站按匿名公开视频与公开收藏夹优先，补充音频区曲目/独立歌单，再接入可选账号与私有收藏夹。此增量不改变历史 P0—P8 完成记录，也不将平台登录作为匿名播放前置条件。
 
