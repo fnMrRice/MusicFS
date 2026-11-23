@@ -48,6 +48,8 @@ Server 的业务适配按可信注册能力与公共接口执行：插件提供�
 
 来源插件通过 `sourceType` 声明本地或网络播放路径。网络来源在创建播放会话时查询当前账号可用的音频格式，客户端请求音频时才开始读取。支持播放的在线插件共用服务端下载缓存，可按用户和插件设置容量，默认边下边播。一个来源可以保留多个音质或内容版本。用户可在曲目列表查看每个下载版本的实际音质，按需删除其中一个。缓存读取沿用账号和曲目播放授权。见[来源播放流程](diagrams/source-playback.puml)和 [Server 网络来源播放](../server/docs/playback/network-sources.md)。
 
+在线歌单支持单曲、多选和整单下载。Web 在提交时展示来源插件声明的音质，Server 将所选音质和当前账号绑定到后台任务，逐首下载到同一缓存，并记录每首实际保存的版本或失败原因。中断的任务可在服务端重启后继续。
+
 Server 来源插件 ID 统一为 `musicfs.plugin.source.xxx`，解码与音频处理插件统一为 `musicfs.plugin.decoder.xxx`；本地歌词/封面插件保留 `musicfs.scraper.local`。每个插件必须在握手中提供显示别名 `plugin.name`、译名和 `supportsMultipleInstances` 声明，管理接口返回这些信息；本地音乐、FFmpeg 和 NCM 只允许一个配置实例，四个在线平台及本地歌词/封面插件支持多实例。插件实例使用稳定 UUID，与插件 ID 和显示别名分离；在线实例名称取当前已校验账号的用户名，未登录时回退插件别名。客户端按声明展示插件与账号，不以 UUID 作为标题。旧命名、UUID 迁移及配套升级要求见 [Server 插件身份与名称](../server/docs/plugins/plugin-identity.md)。
 
 Server 插件和实例停用只保存配置，重启 Server 后生效；当前 Worker、任务、播放及新工作准入保持。启用和实例设置仍可动态应用。管理快照及操作的 `restartRequired` 与实例 `RESTART_REQUIRED` 原因区分保存意图和运行状态；待重启时 `effectiveEnabled` 按当前运行开关计算，`appliedRevision` 不推进至新修订。旧 `mode=drain/force` 仅兼容接受，不再排空或取消。客户端不得凭保存开关或操作 succeeded 宣称已经停用，见[Server 插件管理](../server/docs/plugins/plugin-management.md)。
