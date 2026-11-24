@@ -93,7 +93,6 @@ function files(directory, prefix = '') {
   for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
     const name = prefix + entry.name;
     const full = path.join(directory, entry.name);
-    noLinks(full);
     if (entry.isDirectory()) result.push(...files(full, name + '/'));
     else {
       regular(full);
@@ -120,7 +119,6 @@ export function check(output) {
 export function assemble(stage, root, os, revision, dirty, rebuilt) {
   if (!['windows', 'linux'].includes(os) || !['true', 'false'].includes(dirty) ||
       !['true', 'false'].includes(rebuilt)) throw new Error('Invalid assembly arguments.');
-  noLinks(stage);
   // Inspect all existing staged files before writing metadata.
   files(stage);
   const marker = path.join(stage, '.incomplete');
