@@ -36,7 +36,7 @@
 | 音频分析、标签格式、匹配评分、内容变换 | Server 主进程内置插件；当前实现 Chromaprint、FLAC、标准评分、PNG/JPEG 缩略图 | 证据版本、授权读取、人工排除、Recording 关联、原件替换、结果发布与续播决定 |
 | 本机设备后端、歌词呈现、系统媒体控制 | Client 可替换的原生能力；新增 SDK 类型分阶段开放 | 唯一输出时钟、窗口/设备归属、命令验证、退出及回调释放 |
 | 主题、可选外部控制 | Client 声明式主题、原生控制插件 | UI 数据接口、PlayerCore 状态与授权命令；普通控制不授予安装权限 |
-| 数据库后端 / 备份 | Server 可信 Backend；数据库插件负责主库与实例状态库的建库、Schema、迁移和原子操作；内置 SQLite 与独立 SQLite Worker 已提供，其他数据库待适配 | 业务数据与事务契约、启动锁、生命周期、一致性清单、对象引用、密钥和恢复判断 |
+| 数据库后端 / 备份 | Server 可信 Backend；数据库插件负责主库与实例状态库的建库、Schema、迁移和原子操作；默认内置 SQLite，也可选择原生 PostgreSQL；独立 SQLite Worker 仍可选 | 业务数据与事务契约、启动锁、生命周期、一致性清单、对象引用、密钥和恢复判断 |
 
 各端插件类型及精确扩展契约分别见 [Server 插件架构](../server/docs/plugins/plugin-architecture.md)和 [Client 插件能力](../client/docs/plugin-capabilities.md)，不能把本表中的类别名直接写入现有 wire 协议。Web 继续按 Server 能力展示，不安装 C++ 插件，不读取 DLL，也不与 Server 插件通道直接通信。
 
