@@ -240,6 +240,8 @@ WebSocket 已取代原 `/events` SSE。通知只携带公开状态或资源变�
 
 最小 Web 首次登录用显式 Bearer 凭据和允许的 Origin 校验，取得 HttpOnly 会话 Cookie 与 CSRF token；登录后的状态修改（包括退出）校验会话 CSRF 和 Origin。原生 audio 通过同源 Cookie 访问授权流，无需把凭据放入 URL。详细边界见[联合实施契约](implementation.md#33-同源连接与会话)。
 
+受保护的 HTTP 请求通过鉴权后延长登录会话并更新 Cookie。Web 播放期间通过 HTTP 为当前曲目和登录会话一起续期，播放已缓冲的音频时也会续期。登录过期后，Web 保留本机播放队列和播放模式，同一账号重新登录同一服务地址后恢复当前曲目，等待用户继续播放。
+
 ## 5. 播放协商、定位与恢复
 
 各客户端上报实际可用的 codec、container、MIME、传输方式、定位能力及请求的处理效果。Server 选择可交付的来源与输出：兼容且无需处理时直接播放或字节代理；需要兼容处理或 DSP 时使用 Server 插件链输出。播放契约分别接受浏览器的 `htmlAudio` 和原生播放器的 `nativeHttp`，返回描述携带协商后的传输类型。Android 按本机支持的格式上报，详见 [Android 原生播放接入](../android/docs/server-playback.md)。
